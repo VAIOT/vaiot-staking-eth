@@ -10,7 +10,7 @@
   "scripts": {
     "precompile": "rimraf ./build/",
     "compile": "waffle",
-    "pretest": "npm compile",
+    "pretest": "waffle",
     "test": "mocha",
     "lint": "prettier ./test/**/*.ts --check",
     "prepublishOnly": "npm test"
