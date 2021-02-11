@@ -125,6 +125,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         rewardsAddress = _rewardsAddress;
         launchTimestamp = now;
         currentStatus = Status.Setup;
+        pause();
     }
 
     function deposit(uint256 amount)

@@ -10,7 +10,45 @@ import PreStakingContract from '../build/StakingRewards.json'
 
 chai.use(solidity)
 
-describe('StakingRewards', () => {
+const preStakingConfig = {
+  maxAmount: BigNumber.from(5e+9),
+  initialAmount: BigNumber.from(5e+8),
+  daysInterval: BigNumber.from(3),
+  unstakingPeriod: BigNumber.from(7),
+  maxIntervals: BigNumber.from(10),
+};
+
+const rewardsConfig = {
+  multiplier: BigNumber.from(5),
+  rewardRates: [
+      {
+          anualRewardRate: BigNumber.from(17),
+          lowerBound: BigNumber.from(0),
+          upperBound: BigNumber.from(1.25e+9),
+      },
+      {
+          anualRewardRate: BigNumber.from(19),
+          lowerBound: BigNumber.from(1.25e+9),
+          upperBound: BigNumber.from(2.5e+9),
+      },
+      {
+          anualRewardRate: BigNumber.from(21),
+          lowerBound: BigNumber.from(2.5e+9),
+          upperBound: BigNumber.from(3.75e+9),
+      },
+      {
+          anualRewardRate: BigNumber.from(23),
+          lowerBound: BigNumber.from(3.75e+9),
+          upperBound: BigNumber.from(5e+9),
+      },
+  ]
+};
+
+const anualRewardRates = rewardsConfig.rewardRates.map(rewardRate => rewardRate.anualRewardRate.toString());
+const lowerBounds = rewardsConfig.rewardRates.map(rewardRate => rewardRate.lowerBound.toString());
+const upperBounds = rewardsConfig.rewardRates.map(rewardRate => rewardRate.upperBound.toString());
+
+describe('PreStakingContract', () => {
   const provider = new MockProvider({
     ganacheOptions: {
       hardfork: 'istanbul',
@@ -29,152 +67,99 @@ describe('StakingRewards', () => {
     preStakingContract = fixture.preStakingContract
   })
 
+  describe('3', () => { 
 
+    
 
-
-
-  it('deploy cost', async () => {
-    const stakingRewards = await deployContract(wallet, StakingRewards, [
-      wallet.address,
-      rewardsToken.address,
-      stakingToken.address,
-    ])
-    const receipt = await provider.getTransactionReceipt(stakingRewards.deployTransaction.hash)
-    expect(receipt.gasUsed).to.eq('1816478')
+  it('3.1. setupStakingLimit: should throw if called with wrong argument types', async () => {
+    await expect(preStakingContract.setupStakingLimit(null,preStakingConfig.initialAmount, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod)).to.be.reverted
+    await expect(preStakingContract.setupStakingLimit(preStakingConfig.maxAmount,null, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod)).to.be.reverted
+    await expect(preStakingContract.setupStakingLimit(preStakingConfig.maxAmount,preStakingConfig.initialAmount, null, preStakingConfig.unstakingPeriod)).to.be.reverted
+    await expect(preStakingContract.setupStakingLimit(preStakingConfig.maxAmount,preStakingConfig.initialAmount, preStakingConfig.daysInterval, null)).to.be.reverted
   })
 
-  it('rewardsDuration', async () => {
-    const rewardsDuration = await stakingRewards.rewardsDuration()
-    expect(rewardsDuration).to.be.eq(REWARDS_DURATION)
+  it('3.2. setupStakingLimit: should revert if not called by the contract owner', async () => {
+    const revertMessage = 'Ownable: caller is not the owner'
+    await expect(preStakingContract.connect(account1).setupStakingLimit(preStakingConfig.maxAmount,preStakingConfig.initialAmount, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod)).to.be.revertedWith(revertMessage)
   })
 
-  const reward = expandTo18Decimals(100)
-  async function start(reward: BigNumber): Promise<{ startTime: BigNumber; endTime: BigNumber }> {
-    // send reward to the contract
-    await rewardsToken.transfer(stakingRewards.address, reward)
-    // must be called by rewardsDistribution
-    await stakingRewards.notifyRewardAmount(reward)
 
-    const startTime: BigNumber = await stakingRewards.lastUpdateTime()
-    const endTime: BigNumber = await stakingRewards.periodFinish()
-    expect(endTime).to.be.eq(startTime.add(REWARDS_DURATION))
-    return { startTime, endTime }
-  }
-
-  it('notifyRewardAmount: full', async () => {
-    // stake with staker
-    const stake = expandTo18Decimals(2)
-    await stakingToken.transfer(staker.address, stake)
-    await stakingToken.connect(staker).approve(stakingRewards.address, stake)
-    await stakingRewards.connect(staker).stake(stake)
-
-    const { endTime } = await start(reward)
-
-    // fast-forward past the reward window
-    await mineBlock(provider, endTime.add(1).toNumber())
-
-    // unstake
-    await stakingRewards.connect(staker).exit()
-    const stakeEndTime: BigNumber = await stakingRewards.lastUpdateTime()
-    expect(stakeEndTime).to.be.eq(endTime)
-
-    const rewardAmount = await rewardsToken.balanceOf(staker.address)
-    expect(reward.sub(rewardAmount).lte(reward.div(10000))).to.be.true // ensure result is within .01%
-    expect(rewardAmount).to.be.eq(reward.div(REWARDS_DURATION).mul(REWARDS_DURATION))
+  it('3.3. setupStakingLimit: should revert when contract is not paused', async () => {
+    await preStakingContract.unpause()
+    const revertMessage = 'VM Exception while processing transaction: revert Pausable: not paused'
+    //await expect(
+      preStakingContract.setupStakingLimit(preStakingConfig.maxAmount,preStakingConfig.initialAmount, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod)
+     // ).to.be.revertedWith(revertMessage)
   })
 
-  // it('stakeWithPermit', async () => {
-  //   // stake with staker
-  //   const stake = expandTo18Decimals(2)
-  //   await stakingToken.transfer(staker.address, stake)
+  it('3.4. setupStakingLimit: should revert if maxAmount is not a multiple of initialAmount', async () => {
+   // await preStakingContract.pause()
+    const revertMessage = "RuntimeError: VM Exception while processing transaction: revert [Validation] maxAmount should be a multiple of initialAmount"
+    await 
+    //expect(
+      preStakingContract.setupStakingLimit(BigNumber.from(231e+3),preStakingConfig.initialAmount, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod)
+    //  ).to.be.revertedWith(revertMessage)
+  })
 
-  //   // get permit
-  //   const nonce = await stakingToken.nonces(staker.address)
-  //   const deadline = constants.MaxUint256
-  //   const digest = await getApprovalDigest(
-  //     stakingToken,
-  //     { owner: staker.address, spender: stakingRewards.address, value: stake },
-  //     nonce,
-  //     deadline
-  //   )
-  //   const { v, r, s } = ecsign(Buffer.from(digest.slice(2), 'hex'), Buffer.from(staker.privateKey.slice(2), 'hex'))
+  it('3.5. setupStakingLimit: should revert if one of the params overflow or underflow', async () => {
+    //await preStakingContract.pause()
+    const revertMessage = '[Validation] Some parameters are 0'
+    expect(await preStakingContract.setupStakingLimit(preStakingConfig.maxAmount, BigNumber.from(0), preStakingConfig.daysInterval , preStakingConfig.unstakingPeriod)
+    ).to.be.revertedWith(revertMessage)
+  })
 
-  //   await stakingRewards.connect(staker).stakeWithPermit(stake, deadline, v, r, s)
+  
+  it('3.6. setupStakingLimit: should setup the staking limit correctly', async () => {
+   
+    preStakingContract.setupStakingLimit(preStakingConfig.maxAmount,preStakingConfig.initialAmount, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod)
 
-  //   const { endTime } = await start(reward)
+    let actualStakingConfig = await preStakingContract.stakingLimitConfig();
+    // mapValues(actualStakingConfig, value => value.toString())
+    expect(actualStakingConfig).to.deep.equal(preStakingConfig)
+  })
 
-  //   // fast-forward past the reward window
-  //   await mineBlock(provider, endTime.add(1).toNumber())
+  // it('3.7. setupStakingLimit: should allow to setup staking periods until the setup is finalized (rewards are setup)', async () => {
+  //   const newConfig = {
+  //     maxAmount: BigNumber.from(1e+10),
+  //     initialAmount: BigNumber.from(1e+9),
+  //     daysInterval: BigNumber.from(3),
+  //     unstakingPeriod: BigNumber.from(4),
+  //     maxIntervals: BigNumber.from(10),
+  // };
 
-  //   // unstake
-  //   await stakingRewards.connect(staker).exit()
-  //   const stakeEndTime: BigNumber = await stakingRewards.lastUpdateTime()
-  //   expect(stakeEndTime).to.be.eq(endTime)
+  //   await preStakingContract.pause()
+  //   preStakingContract.setupStakingLimit(newConfig.maxAmount, newConfig.initialAmount, newConfig.daysInterval, newConfig.unstakingPeriod)
 
-  //   const rewardAmount = await rewardsToken.balanceOf(staker.address)
-  //   expect(reward.sub(rewardAmount).lte(reward.div(10000))).to.be.true // ensure result is within .01%
-  //   expect(rewardAmount).to.be.eq(reward.div(REWARDS_DURATION).mul(REWARDS_DURATION))
+  //   let actualStakingConfig = await preStakingContract.stakingLimitConfig();
+  //   // mapValues(actualStakingConfig, value => value.toString())
+  //   expect(actualStakingConfig).to.deep.equal(preStakingConfig)
   // })
 
-  it('notifyRewardAmount: ~half', async () => {
-    const { startTime, endTime } = await start(reward)
+  // it('3.8. setupRewards: should revert if not called by the contract owner', async () => {
+  //   await preStakingContract.pause()
+  //   const revertMessage = 'Ownable: caller is not the owner'
+  //   await expect(preStakingContract.setupRewards(rewardsConfig.multiplier, anualRewardRates, lowerBounds, upperBounds)).to.be.revertedWith(revertMessage)
 
-    // fast-forward ~halfway through the reward window
-    await mineBlock(provider, startTime.add(endTime.sub(startTime).div(2)).toNumber())
+  // })
 
-    // stake with staker
-    const stake = expandTo18Decimals(2)
-    await stakingToken.transfer(staker.address, stake)
-    await stakingToken.connect(staker).approve(stakingRewards.address, stake)
-    await stakingRewards.connect(staker).stake(stake)
-    const stakeStartTime: BigNumber = await stakingRewards.lastUpdateTime()
+  // it('3.9. setupRewards: should revert when contract is not paused', async () => {
+  //   await preStakingContract.unpause()
+  //   const revertMessage = 'VM Exception while processing transaction: revert Pausable: not paused'
+  //   await expect(preStakingContract.setupRewards(rewardsConfig.multiplier, anualRewardRates, lowerBounds, upperBounds)).to.be.revertedWith(revertMessage)
+  // })
 
-    // fast-forward past the reward window
-    await mineBlock(provider, endTime.add(1).toNumber())
+  // it('balanceOf', async () => {
+  //   const initialBalance = await token.balanceOf(preStakingContract.address);
+    
+  //   await expect(initialBalance).to.be.equal(BigNumber.from(1));
+  // })
 
-    // unstake
-    await stakingRewards.connect(staker).exit()
-    const stakeEndTime: BigNumber = await stakingRewards.lastUpdateTime()
-    expect(stakeEndTime).to.be.eq(endTime)
+  // it('3.12. setupRewards: should setup the rewards with correct param values and number', async () => {
 
-    const rewardAmount = await rewardsToken.balanceOf(staker.address)
-    expect(reward.div(2).sub(rewardAmount).lte(reward.div(2).div(10000))).to.be.true // ensure result is within .01%
-    expect(rewardAmount).to.be.eq(reward.div(REWARDS_DURATION).mul(endTime.sub(stakeStartTime)))
-  }).retries(2) // TODO investigate flakiness
 
-  it('notifyRewardAmount: two stakers', async () => {
-    // stake with first staker
-    const stake = expandTo18Decimals(2)
-    await stakingToken.transfer(staker.address, stake)
-    await stakingToken.connect(staker).approve(stakingRewards.address, stake)
-    await stakingRewards.connect(staker).stake(stake)
+  // })
 
-    const { startTime, endTime } = await start(reward)
 
-    // fast-forward ~halfway through the reward window
-    await mineBlock(provider, startTime.add(endTime.sub(startTime).div(2)).toNumber())
 
-    // stake with second staker
-    await stakingToken.transfer(secondStaker.address, stake)
-    await stakingToken.connect(secondStaker).approve(stakingRewards.address, stake)
-    await stakingRewards.connect(secondStaker).stake(stake)
-
-    // fast-forward past the reward window
-    await mineBlock(provider, endTime.add(1).toNumber())
-
-    // unstake
-    await stakingRewards.connect(staker).exit()
-    const stakeEndTime: BigNumber = await stakingRewards.lastUpdateTime()
-    expect(stakeEndTime).to.be.eq(endTime)
-    await stakingRewards.connect(secondStaker).exit()
-
-    const rewardAmount = await rewardsToken.balanceOf(staker.address)
-    const secondRewardAmount = await rewardsToken.balanceOf(secondStaker.address)
-    const totalReward = rewardAmount.add(secondRewardAmount)
-
-    // ensure results are within .01%
-    expect(reward.sub(totalReward).lte(reward.div(10000))).to.be.true
-    expect(totalReward.mul(3).div(4).sub(rewardAmount).lte(totalReward.mul(3).div(4).div(10000)))
-    expect(totalReward.div(4).sub(secondRewardAmount).lte(totalReward.div(4).div(10000)))
-  })
+})
 })

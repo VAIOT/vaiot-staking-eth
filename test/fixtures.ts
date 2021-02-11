@@ -69,7 +69,6 @@ interface PreStakingFixture {
   preStakingContract: Contract
 }
 
-
 export async function preStakingFixture (
   [wallet, rewardsWallet]: Wallet[],
   provider: providers.Web3Provider
