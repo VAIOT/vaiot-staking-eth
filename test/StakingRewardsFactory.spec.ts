@@ -37,7 +37,7 @@ describe('StakingRewardsFactory', () => {
 
   it('deployment gas', async () => {
     const receipt = await provider.getTransactionReceipt(stakingRewardsFactory.deployTransaction.hash)
-    expect(receipt.gasUsed).to.eq('2080815')
+    expect(receipt.gasUsed).to.eq('2508584')
   })
 
   describe('#deploy', () => {
@@ -111,7 +111,7 @@ describe('StakingRewardsFactory', () => {
         await mineBlock(provider, genesis)
         const tx = await stakingRewardsFactory.notifyRewardAmounts()
         const receipt = await tx.wait()
-        expect(receipt.gasUsed).to.eq('416215')
+        expect(receipt.gasUsed).to.eq('417607')
       })
 
       it('no op if called twice', async () => {
@@ -124,7 +124,7 @@ describe('StakingRewardsFactory', () => {
       it('fails if called without sufficient balance', async () => {
         await mineBlock(provider, genesis)
         await expect(stakingRewardsFactory.notifyRewardAmounts()).to.be.revertedWith(
-          'SafeMath: subtraction overflow' // emitted from rewards token
+          'ERC20: transfer amount exceeds balance' // emitted from rewards token
         )
       })
 
