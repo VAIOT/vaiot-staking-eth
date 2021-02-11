@@ -1,14 +1,15 @@
 pragma solidity ^0.5.16;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "./libs/math/Math.sol";
-import "./libs/utils/Address.sol";
-import "./libs/utils/Arrays.sol";
-import "./libs/utils/ReentrancyGuard.sol";
-import "./libs/lifecycle/Pausable.sol";
-import "./token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/math/Math.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/Arrays.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/lifecycle/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 
-contract PreStakingContract is Pausable, ReentrancyGuard {
+contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
     using SafeMath for uint256;
     using Math for uint256;

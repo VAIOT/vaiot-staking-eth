@@ -3,10 +3,10 @@ import { Contract, BigNumber, constants } from 'ethers'
 import { solidity, MockProvider, createFixtureLoader, deployContract } from 'ethereum-waffle'
 import { ecsign } from 'ethereumjs-util'
 
-import { stakingRewardsFixture } from './fixtures'
+import { preStakingFixture } from './fixtures'
 import { REWARDS_DURATION, expandTo18Decimals, mineBlock, getApprovalDigest } from './utils'
 
-import StakingRewards from '../build/StakingRewards.json'
+import PreStakingContract from '../build/StakingRewards.json'
 
 chai.use(solidity)
 
@@ -18,18 +18,20 @@ describe('StakingRewards', () => {
       gasLimit: 9999999,
     },
   })
-  const [wallet, staker, secondStaker] = provider.getWallets()
-  const loadFixture = createFixtureLoader([wallet], provider)
+  const [wallet, rewardsWallet, account1, account2, account3, account4] = provider.getWallets()
+  const loadFixture = createFixtureLoader([wallet, rewardsWallet], provider)
 
-  let stakingRewards: Contract
-  let rewardsToken: Contract
-  let stakingToken: Contract
+  let token: Contract
+  let preStakingContract: Contract
   beforeEach(async () => {
-    const fixture = await loadFixture(stakingRewardsFixture)
-    stakingRewards = fixture.stakingRewards
-    rewardsToken = fixture.rewardsToken
-    stakingToken = fixture.stakingToken
+    const fixture = await loadFixture(preStakingFixture)
+    token = fixture.token
+    preStakingContract = fixture.preStakingContract
   })
+
+
+
+
 
   it('deploy cost', async () => {
     const stakingRewards = await deployContract(wallet, StakingRewards, [
