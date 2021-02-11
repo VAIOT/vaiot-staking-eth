@@ -8,6 +8,7 @@ import UniswapV2ERC20 from '@uniswap/v2-core/build/ERC20.json'
 import TestERC20 from '../build/TestERC20.json'
 import StakingRewards from '../build/StakingRewards.json'
 import StakingRewardsFactory from '../build/StakingRewardsFactory.json'
+import PreStakingContract from '../build/PreStakingContract.json'
 
 chai.use(solidity)
 
@@ -61,4 +62,21 @@ export async function stakingRewardsFactoryFixture(
   const stakingRewardsFactory = await deployContract(wallet, StakingRewardsFactory, [rewardsToken.address, genesis])
 
   return { rewardsToken, stakingTokens, genesis, rewardAmounts, stakingRewardsFactory }
+}
+
+interface PreStakingFixture {
+  token: Contract
+  preStakingContract: Contract
+}
+
+
+export async function preStakingFixture (
+  [wallet, rewardsWallet]: Wallet[],
+  provider: providers.Web3Provider
+): Promise<PreStakingFixture> {
+
+  const token = await deployContract(wallet, TestERC20, [expandTo18Decimals(400_000_000)])
+  const preStakingContract = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
+
+  return { token, preStakingContract }
 }
