@@ -41,7 +41,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     }
 
     struct StakingLimitConfig {
-        uint256 amounts;
+        uint256[] amounts;
         uint256 daysInterval;
         uint256 unstakingPeriod;
     }
@@ -242,7 +242,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     }
 
     function status(address account)
-    external
+    public
     onlyAfterSetup
     view
     returns (DepositStatus)
@@ -262,7 +262,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     view
     returns (uint256)
     {
-        require(status(account) == DepositStatus.Withdrawal, "[Validation] Withdrawal not initialized");
+        require(status(account) == DepositStatus.WithdrawalInitialized, "[Validation] Withdrawal not initialized");
         StakeDeposit memory stakeDeposit = _stakeDeposits[account];
         return stakeDeposit.endDate - now;
     }
@@ -319,7 +319,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     }
 
     // OWNER SETUP
-    function setupStakingLimit(uint256[] amounts, uint256 daysInterval, uint256 unstakingPeriod)
+    function setupStakingLimit(uint256[] calldata amounts, uint256 daysInterval, uint256 unstakingPeriod)
     external
     onlyOwner
     whenPaused
@@ -390,7 +390,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     returns (uint256)
     {
         uint256 intervalsPassed = _getIntervalsPassed();
-        return stakingLimitConfig.amounts[i];
+        return stakingLimitConfig.amounts[intervalsPassed];
     }
 
     function _getIntervalsPassed()

@@ -22,7 +22,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     IERC20 public stakingToken;
     uint256 public periodFinish = 0;
     uint256 public rewardRate = 0;
-    uint256 public rewardsDuration = 7 days;
+    uint256 public rewardsDuration = 1 days;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
     uint256 public launchTimestamp;
@@ -63,6 +63,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     function rewardPerToken() public view returns (uint256) {
         if (_totalSupply == 0) {
             return rewardPerTokenStored;
+
         }
         return
             rewardPerTokenStored.add(

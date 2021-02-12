@@ -12,11 +12,8 @@ const stakingFactoryCompiled = require('../build/StakingRewardsFactory.json');
 
 	console.log(`Attempting to deploy from account: ${accounts[0]}`);
 
-	const stakingFactoryDeployed = await new web3.eth.Contract(stakingFactoryCompiled.abi)
-		.deploy({
-			data: '0x' + stakingFactoryCompiled.evm.bytecode.object,
-			arguments: ["0x9F801c1F02AF03cC240546DadEf8e56Cd46EA2E9", 1613162424]
-		})
+	const tx = await new web3.eth.Contract(stakingFactoryCompiled.abi, "0xBB1d743D222876B27D70d463003d0b9aeB5f001E")
+		.methods.notifyRewardAmount("0xb3956ac32fc127f7b474e422c7cd043549872fea", "10000000000000000000000")
 		.send({
 			from: accounts[0],
 			gas: '3000000',
@@ -24,7 +21,7 @@ const stakingFactoryCompiled = require('../build/StakingRewardsFactory.json');
 		});
 
 	console.log(
-		`Contract deployed at address: ${stakingFactoryDeployed.options.address}`
+		`Transaction sent with hash: ${tx.transactionHash}`
 	);
 
 	provider.engine.stop();
