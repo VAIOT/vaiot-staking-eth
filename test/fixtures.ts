@@ -74,7 +74,7 @@ export async function preStakingFixture (
   provider: providers.Web3Provider
 ): Promise<PreStakingFixture> {
 
-  const token = await deployContract(wallet, TestERC20, [expandTo18Decimals(400_000_000)])
+  const token = await deployContract(wallet, TestERC20, [expandTo18Decimals(400_000_000_000)])
   const preStakingContract = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
 
   return { token, preStakingContract }
