@@ -369,42 +369,7 @@ describe('PreStakingContract', () => {
   });
 
   describe('5. Disable rewards', () => { 
-    // before( async () => {
-    //     //this.token = await Token.new('ElrondToken', 'ERD', BigNumber(18));
-    //     //this.stakingContract = await StakingContract.new(this.token.address, rewardsAddress);
-    //    // await token.mint(rewardsWallet, rewardsAmount)
-    //     // await token.mint(account1, depositAmount)
-    //     // await token.mint(account2, depositAmount)
-    //     // await token.mint(account3, depositAmount)
-    //     await token.connect(wallet).transfer(account1, depositAmount)
-    //     await token.connect(wallet).transfer(account2, depositAmount)
-    //     await token.connect(wallet).transfer(account3, depositAmount)
-
-    //     //allow staking contract
-    //     await token.connect(rewardsWallet).approve(preStakingContract.address, rewardsAmount)
-    //     await token.connect(account1).approve(preStakingContract.address, depositAmount)
-    //     await token.connect(account2).approve(preStakingContract.address, depositAmount)
-    //     await token.connect(account3).approve(preStakingContract.address, depositAmount)
-
-    //     await preStakingContract.setupStakingLimit(
-    //       stakingConfig.maxAmount, stakingConfig.initialAmount, stakingConfig.daysInterval, stakingConfig.unstakingPeriod
-    //     )
-    //     await preStakingContract.setupRewards(
-    //                 rewardsConfig.multiplier,
-    //                 anualRewardRates,
-    //                 lowerBounds,
-    //                 upperBounds
-                    
-    //             )
-    //     await preStakingContract.unpause()
-    // })
-
-    it('should allow only the owner to disable rewards', async () => {
-        const msg = "Ownable: caller is not the owner"
-        await expect(preStakingContract.connect(unauthorized).toggleRewards(true)).to.be.revertedWith(msg)
-    })
-
-    it("should reduce the reward to half if rewards are disabled for 15 out of 30 days", async () => {
+    beforeEach( async () => {
       await token.connect(wallet).transfer(rewardsWallet.address, rewardsAmount)
       await token.connect(wallet).transfer(account1.address, depositAmount)
       await token.connect(wallet).transfer(account2.address, depositAmount)
@@ -426,36 +391,50 @@ describe('PreStakingContract', () => {
                   upperBounds
                   
       )
-        await preStakingContract.unpause()
+      await preStakingContract.unpause()
+    })
+
+    it('should allow only the owner to disable rewards', async () => {
+        const msg = "Ownable: caller is not the owner"
+        await expect(preStakingContract.connect(unauthorized).toggleRewards(true)).to.be.revertedWith(msg)
+    })
+
+    it("should reduce the reward to half if rewards are disabled for 15 out of 30 days", async () => {
+
        //Account 1
         await preStakingContract.connect(account1).deposit(depositAmount)
        
-        const timestamp = await (await provider.getBlock("latest")).timestamp
+        const timestamp = (await provider.getBlock("latest")).timestamp
         await mineBlock(provider, timestamp + 1296000)
         await preStakingContract.toggleRewards(false)
 
-        const timestamp1 = await (await provider.getBlock("latest")).timestamp
+        const timestamp1 = (await provider.getBlock("latest")).timestamp
         await mineBlock(provider, timestamp1 + 1296000)
         await preStakingContract.connect(account1).initiateWithdrawal()
 
-        const timestamp2 = await (await provider.getBlock("latest")).timestamp
+        const timestamp2 = (await provider.getBlock("latest")).timestamp
         await mineBlock(provider, timestamp2 + 691200)
-        const tx1 = await preStakingContract.connect(account1).executeWithdrawal()
+        await preStakingContract.connect(account1).executeWithdrawal()
+        let reward1 = BigNumber.from(0)
+        let reward2 = BigNumber.from(0)
+        preStakingContract.on("WithdrawExecuted", (account, amount, reward) => {
+          if (account == account1.address) {
+            reward1 = reward
+          } else if (account == account2.address) {
+            reward2 = reward
+            expect(reward1).to.be.equal(reward2.div(BigNumber.from(2)));
+          }
+        })
 
         //Account 2
         await preStakingContract.toggleRewards(true);
-        const timestamp3 = await (await provider.getBlock("latest")).timestamp
+        await preStakingContract.connect(account2).deposit(depositAmount)
+        const timestamp3 = (await provider.getBlock("latest")).timestamp
         await mineBlock(provider, timestamp3 + 2592000)
         await preStakingContract.connect(account2).initiateWithdrawal();
-        const timestamp4 = await (await provider.getBlock("latest")).timestamp
-        await mineBlock(provider, timestamp4 + 5520)
-        const tx2 = await preStakingContract.connect(account2).executeWithdrawal();
-
-        
-        //const reward1 = getEventProperty(tx1.logs, 'WithdrawExecuted', 'reward');
-        //const reward2 = getEventProperty(tx2.logs, 'WithdrawExecuted', 'reward');
-
-        //expect(reward1).to.be.equal(reward2.div(BigNumber.from(2)));
+        const timestamp4 = (await provider.getBlock("latest")).timestamp
+        await mineBlock(provider, timestamp4 + 691200)
+        await preStakingContract.connect(account2).executeWithdrawal();
     })
   })
 
