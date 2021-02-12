@@ -37,6 +37,7 @@ describe('StakingRewards', () => {
       rewardsToken.address,
       stakingToken.address,
     ])
+    const timestamp = await (await provider.getBlock("latest")).timestamp;
     const receipt = await provider.getTransactionReceipt(stakingRewards.deployTransaction.hash)
     expect(receipt.gasUsed).to.eq('1816478')
   })

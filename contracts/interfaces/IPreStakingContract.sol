@@ -3,9 +3,11 @@ pragma solidity >=0.4.24;
 
 interface IPreStakingContract {
 
+    enum DepositStatus {NoDeposit, Deposited, WithdrawalInitialized, WithdrawalExecuted}
+
     // Views
 
-    function status(address account) external view returns (uint); // TODO right unit
+    function status(address account) external view returns (DepositStatus);
 
     function balanceOf(address account) external view returns (uint256);
 
@@ -21,10 +23,10 @@ interface IPreStakingContract {
 
     // Mutative
 
-    function stake(uint256 amount) external;
+    function deposit(uint256 amount) external;
 
-    function initializeWithdraw() external;
+    function initiateWithdrawal() external;
 
-    function executeWithdraw() external;
+    function executeWithdrawal() external;
 
 }
