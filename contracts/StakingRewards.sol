@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity ^0.5.17;
 
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/ownership/Ownable.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2ERC20.sol";
 
 // Inheritance
 import "./interfaces/IStakingRewards.sol";
@@ -22,7 +23,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     IERC20 public stakingToken;
     uint256 public periodFinish = 0;
     uint256 public rewardRate = 0;
-    uint256 public rewardsDuration = 1 days;
+    uint256 public rewardsDuration = 30 days + 12 hours;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
     uint256 public launchTimestamp;
@@ -80,6 +81,18 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
+
+    function stakeWithPermit(uint256 amount, uint deadline, uint8 v, bytes32 r, bytes32 s) external nonReentrant updateReward(msg.sender) {
+        require(amount > 0, "Cannot stake 0");
+        _totalSupply = _totalSupply.add(amount);
+        _balances[msg.sender] = _balances[msg.sender].add(amount);
+
+        // permit
+        IUniswapV2ERC20(address(stakingToken)).permit(msg.sender, address(this), amount, deadline, v, r, s);
+
+        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
+        emit Staked(msg.sender, amount);
+    }
 
     function stake(uint256 amount) external nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
@@ -169,7 +182,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
 
     modifier guardForPrematureWithdrawal()
     {
-        require(now >= (launchTimestamp + 10 days), "[Withdraw] Not enough days passed");
+        require(now >= (launchTimestamp + 8 days + 12 hours), "[Withdraw] Not enough days passed");
         _;
     }
 

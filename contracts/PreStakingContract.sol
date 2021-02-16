@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity ^0.5.17;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
@@ -93,6 +93,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     {
         uint256 intervalsPassed = _getIntervalsPassed();
         require(now >= (2 * stakingLimitConfig.daysInterval + 3 days), "[Withdraw] Not enough days passed");
+        // require(now >= (2 * stakingLimitConfig.daysInterval), "[Withdraw] Not enough days passed");
         _;
     }
 
@@ -116,7 +117,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
     // PUBLIC FUNCTIONS
     constructor(address _token, address _rewardsAddress)
-    onlyContract(_token)
+    onlyContract(_token) Ownable()
     public
     {
         require(_rewardsAddress != address(0), "[Validation] _rewardsAddress is the zero address");
@@ -239,6 +240,16 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         stakeDeposit.endDate = now;
 
         return (_computeReward(stakeDeposit));
+    }
+
+    function balanceOf(address account)
+    external
+    onlyAfterSetup
+    view
+    returns (uint256)
+    {
+        StakeDeposit memory stakeDeposit = _stakeDeposits[account];
+        return stakeDeposit.amount;
     }
 
     function status(address account)

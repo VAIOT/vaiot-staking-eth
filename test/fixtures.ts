@@ -2,7 +2,7 @@ import chai from 'chai'
 import { Contract, Wallet, BigNumber, providers } from 'ethers'
 import { solidity, deployContract } from 'ethereum-waffle'
 
-import { expandTo18Decimals } from './utils'
+import { expandTo18Decimals, REWARDS_DURATION } from './utils'
 
 import UniswapV2ERC20 from '@uniswap/v2-core/build/ERC20.json'
 import TestERC20 from '../build/TestERC20.json'
@@ -11,8 +11,6 @@ import StakingRewardsFactory from '../build/StakingRewardsFactory.json'
 import PreStakingContract from '../build/PreStakingContract.json'
 
 chai.use(solidity)
-
-const NUMBER_OF_STAKING_TOKENS = 4
 
 interface StakingRewardsFixture {
   stakingRewards: Contract
@@ -36,9 +34,9 @@ export async function stakingRewardsFixture([wallet]: Wallet[]): Promise<Staking
 
 interface StakingRewardsFactoryFixture {
   rewardsToken: Contract
-  stakingTokens: Contract[]
+  stakingToken: Contract
   genesis: number
-  rewardAmounts: BigNumber[]
+  rewardAmount: BigNumber
   stakingRewardsFactory: Contract
 }
 
@@ -48,35 +46,30 @@ export async function stakingRewardsFactoryFixture(
 ): Promise<StakingRewardsFactoryFixture> {
   const rewardsToken = await deployContract(wallet, TestERC20, [expandTo18Decimals(1_000_000_000)])
 
-  // deploy staking tokens
-  const stakingTokens = []
-  for (let i = 0; i < NUMBER_OF_STAKING_TOKENS; i++) {
-    const stakingToken = await deployContract(wallet, TestERC20, [expandTo18Decimals(1_000_000_000)])
-    stakingTokens.push(stakingToken)
-  }
+  // deploy staking token
+  const stakingToken = await deployContract(wallet, TestERC20, [expandTo18Decimals(1_000_000_000)])
 
   // deploy the staking rewards factory
   const { timestamp: now } = await provider.getBlock('latest')
   const genesis = now + 60 * 60
-  const rewardAmounts: BigNumber[] = new Array(stakingTokens.length).fill(expandTo18Decimals(10))
+  const rewardAmount = expandTo18Decimals(10)
   const stakingRewardsFactory = await deployContract(wallet, StakingRewardsFactory, [rewardsToken.address, genesis])
 
-  return { rewardsToken, stakingTokens, genesis, rewardAmounts, stakingRewardsFactory }
+  return { rewardsToken, stakingToken, genesis, rewardAmount, stakingRewardsFactory }
 }
 
-interface PreStakingFixture {
-  token: Contract
-  preStakingContract: Contract
-}
+// interface PreStakingFixture {
+//   token: Contract
+//   preStakingContract: Contract
+// }
 
+// export async function preStakingFixture (
+//   [wallet, rewardsWallet]: Wallet[],
+//   provider: providers.Web3Provider
+// ): Promise<PreStakingFixture> {
 
-export async function preStakingFixture (
-  [wallet, rewardsWallet]: Wallet[],
-  provider: providers.Web3Provider
-): Promise<PreStakingFixture> {
+//   const token = await deployContract(wallet, TestERC20, [expandTo18Decimals(400_000_000)])
+//   const preStakingContract = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
 
-  const token = await deployContract(wallet, TestERC20, [expandTo18Decimals(400_000_000)])
-  const preStakingContract = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
-
-  return { token, preStakingContract }
-}
+//   return { token, preStakingContract }
+// }

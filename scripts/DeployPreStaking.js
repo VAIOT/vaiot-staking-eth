@@ -15,11 +15,11 @@ const preStakingCompiled = require('../build/PreStakingContract.json');
 	const preStakingDeployed = await new web3.eth.Contract(preStakingCompiled.abi)
 		.deploy({
 			data: '0x' + preStakingCompiled.evm.bytecode.object,
-			arguments: ["0x9F801c1F02AF03cC240546DadEf8e56Cd46EA2E9", 1613162424]
+			arguments: ["0x9F801c1F02AF03cC240546DadEf8e56Cd46EA2E9", "0xc3a603Ee9fcDB97C5E144cc7868De74140D7dF03"]
 		})
 		.send({
 			from: accounts[0],
-			gas: '3000000',
+			gas: '5000000',
             gasPrice: '80000000000'
 		});
 

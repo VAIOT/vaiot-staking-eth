@@ -12,7 +12,7 @@ const stakingFactoryCompiled = require('../build/StakingRewardsFactory.json');
 
 	console.log(`Attempting to deploy from account: ${accounts[0]}`);
 
-	const tx = await new web3.eth.Contract(stakingFactoryCompiled.abi, "0xBB1d743D222876B27D70d463003d0b9aeB5f001E")
+	const tx = await new web3.eth.Contract(stakingFactoryCompiled.abi, "0x65d17cbbA41946d269b054d2F4a43b6927670878")
 		.methods.deploy("0xb3956ac32fc127f7b474e422c7cd043549872fea")
 		.send({
 			from: accounts[0],

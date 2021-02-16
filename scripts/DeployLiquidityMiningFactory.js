@@ -15,7 +15,7 @@ const stakingFactoryCompiled = require('../build/StakingRewardsFactory.json');
 	const stakingFactoryDeployed = await new web3.eth.Contract(stakingFactoryCompiled.abi)
 		.deploy({
 			data: '0x' + stakingFactoryCompiled.evm.bytecode.object,
-			arguments: ["0x9F801c1F02AF03cC240546DadEf8e56Cd46EA2E9", 1613162424]
+			arguments: ["0x9F801c1F02AF03cC240546DadEf8e56Cd46EA2E9", 1613333887]
 		})
 		.send({
 			from: accounts[0],
