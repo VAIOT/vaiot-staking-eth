@@ -10,10 +10,9 @@ import "@uniswap/v2-core/contracts/interfaces/IUniswapV2ERC20.sol";
 
 // Inheritance
 import "./interfaces/IStakingRewards.sol";
-import "./RewardsDistributionRecipient.sol";
 
 
-contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, ReentrancyGuard, Ownable {
+contract StakingRewards is IStakingRewards, ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -37,13 +36,11 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     /* ========== CONSTRUCTOR ========== */
 
     constructor(
-        address _rewardsDistribution,
         address _rewardsToken,
         address _stakingToken
     ) Ownable() public {
         rewardsToken = IERC20(_rewardsToken);
         stakingToken = IERC20(_stakingToken);
-        rewardsDistribution = _rewardsDistribution;
         launchTimestamp = now;
     }
 
@@ -126,7 +123,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function notifyRewardAmount(uint256 reward) external onlyRewardsDistribution updateReward(address(0)) {
+    function notifyRewardAmount(uint256 reward) external onlyOwner updateReward(address(0)) {
         if (block.timestamp >= periodFinish) {
             rewardRate = reward.div(rewardsDuration);
         } else {

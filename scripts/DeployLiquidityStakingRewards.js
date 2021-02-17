@@ -1,27 +1,30 @@
 const HDWalletProvider = require('truffle-hdwallet-provider');
 const Web3 = require('web3');
 
-const provider = new HDWalletProvider(process.env.mnemonic, process.env.infuraRopsten);
+const provider = new HDWalletProvider(process.env.mnemonic, process.env.infuraMainnet);
 
 const web3 = new Web3(provider);
 
-const stakingFactoryCompiled = require('../build/StakingRewardsFactory.json');
+const stakingRewardsCompiled = require('../build/StakingRewards.json');
 
 (async () => {
 	const accounts = await web3.eth.getAccounts();
 
 	console.log(`Attempting to deploy from account: ${accounts[0]}`);
 
-	const tx = await new web3.eth.Contract(stakingFactoryCompiled.abi, "0x65d17cbbA41946d269b054d2F4a43b6927670878")
-		.methods.deploy("0xb3956ac32fc127f7b474e422c7cd043549872fea")
+	const stakingRewardsDeployed = await new web3.eth.Contract(stakingRewardsCompiled.abi)
+		.deploy({
+			data: '0x' + stakingRewardsCompiled.evm.bytecode.object,
+			arguments: ["0x9F801c1F02AF03cC240546DadEf8e56Cd46EA2E9", "0x454d7156b0f62f61e7f2ad6a65d29ce681d6d354"]
+		})
 		.send({
 			from: accounts[0],
 			gas: '3000000',
-            gasPrice: '80000000000'
+            gasPrice: '120000000000'
 		});
 
 	console.log(
-		`Transaction sent with hash: ${tx.transactionHash}`
+		`Contract deployed at address: ${stakingRewardsDeployed.options.address}`
 	);
 
 	provider.engine.stop();

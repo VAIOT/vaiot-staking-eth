@@ -13,7 +13,7 @@ const stakingRewardsCompiled = require('../build/StakingRewards.json');
 	console.log(`Attempting to deploy from account: ${accounts[0]}`);
 
 	const tx = await new web3.eth.Contract(stakingRewardsCompiled.abi, "0xEcCbDAa22E0aa0806a8F235a9eA256224f1CCA15")
-		.methods.notifyRewardAmount("250000000000000000000000")
+		.methods.recoverERC20("0x9F801c1F02AF03cC240546DadEf8e56Cd46EA2E9", "1")
 		.send({
 			from: accounts[0],
 			gas: '3000000',
