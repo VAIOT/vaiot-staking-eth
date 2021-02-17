@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity ^0.5.17;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
@@ -16,7 +16,9 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     using Address for address;
     using Arrays for uint256[];
 
-    enum Status {Setup, Running, RewardsDisabled}
+    enum ContractStatus {Setup, Running, RewardsDisabled}
+
+    enum DepositStatus {NoDeposit, Deposited, WithdrawalInitialized, WithdrawalExecuted}
 
     // EVENTS
     event StakeDeposited(address indexed account, uint256 amount);
@@ -39,10 +41,8 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     }
 
     struct StakingLimitConfig {
-        uint256 maxAmount;
-        uint256 initialAmount;
+        uint256[] amounts;
         uint256 daysInterval;
-        uint256 maxIntervals;
         uint256 unstakingPeriod;
     }
 
@@ -67,7 +67,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
     // CONTRACT STATE VARIABLES
     IERC20 public token;
-    Status public currentStatus;
+    ContractStatus public currentContractStatus;
 
     SetupState public setupState;
     StakingLimitConfig public stakingLimitConfig;
@@ -92,7 +92,8 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     modifier guardForPrematureWithdrawal()
     {
         uint256 intervalsPassed = _getIntervalsPassed();
-        require(intervalsPassed >= stakingLimitConfig.maxIntervals, "[Withdraw] Not enough days passed");
+        require(now >= (2 * stakingLimitConfig.daysInterval + 3 days), "[Withdraw] Not enough days passed");
+        // require(now >= (2 * stakingLimitConfig.daysInterval), "[Withdraw] Not enough days passed");
         _;
     }
 
@@ -104,19 +105,19 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
     modifier onlyDuringSetup()
     {
-        require(currentStatus == Status.Setup, "[Lifecycle] Setup is already done");
+        require(currentContractStatus == ContractStatus.Setup, "[Lifecycle] Setup is already done");
         _;
     }
 
     modifier onlyAfterSetup()
     {
-        require(currentStatus != Status.Setup, "[Lifecycle] Setup is not done");
+        require(currentContractStatus != ContractStatus.Setup, "[Lifecycle] Setup is not done");
         _;
     }
 
     // PUBLIC FUNCTIONS
     constructor(address _token, address _rewardsAddress)
-    onlyContract(_token)
+    onlyContract(_token) Ownable()
     public
     {
         require(_rewardsAddress != address(0), "[Validation] _rewardsAddress is the zero address");
@@ -124,7 +125,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         token = IERC20(_token);
         rewardsAddress = _rewardsAddress;
         launchTimestamp = now;
-        currentStatus = Status.Setup;
+        currentContractStatus = ContractStatus.Setup;
         pause();
     }
 
@@ -199,22 +200,22 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     onlyOwner
     onlyAfterSetup
     {
-        Status newStatus = enabled ? Status.Running : Status.RewardsDisabled;
-        require(currentStatus != newStatus, "[ToggleRewards] This status is already set");
+        ContractStatus newContractStatus = enabled ? ContractStatus.Running : ContractStatus.RewardsDisabled;
+        require(currentContractStatus != newContractStatus, "[ToggleRewards] This status is already set");
 
         uint256 index;
 
-        if (newStatus == Status.RewardsDisabled) {
+        if (newContractStatus == ContractStatus.RewardsDisabled) {
             index = rewardConfig.baseRewards.length - 1;
         }
 
-        if (newStatus == Status.Running) {
+        if (newContractStatus == ContractStatus.Running) {
             index = _computeCurrentBaseReward();
         }
 
         _insertNewCheckpoint(index);
 
-        currentStatus = newStatus;
+        currentContractStatus = newContractStatus;
     }
 
     // VIEW FUNCTIONS FOR HELPING THE USER AND CLIENT INTERFACE
@@ -227,18 +228,54 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         return _computeCurrentStakingLimit();
     }
 
-    function currentReward(address account)
+    function earned(address account)
     external
     onlyAfterSetup
     view
-    returns (uint256 initialDeposit, uint256 reward)
+    returns (uint256)
     {
         require(_stakeDeposits[account].exists && _stakeDeposits[account].amount != 0, "[Validation] This account doesn't have a stake deposit");
 
         StakeDeposit memory stakeDeposit = _stakeDeposits[account];
         stakeDeposit.endDate = now;
 
-        return (stakeDeposit.amount, _computeReward(stakeDeposit));
+        return (_computeReward(stakeDeposit));
+    }
+
+    function balanceOf(address account)
+    external
+    onlyAfterSetup
+    view
+    returns (uint256)
+    {
+        StakeDeposit memory stakeDeposit = _stakeDeposits[account];
+        return stakeDeposit.amount;
+    }
+
+    function status(address account)
+    public
+    onlyAfterSetup
+    view
+    returns (DepositStatus)
+    {
+        if (!_stakeDeposits[account].exists || (_stakeDeposits[account].exists && _stakeDeposits[account].amount == 0)) {
+            return DepositStatus.NoDeposit;
+        }
+        if (_stakeDeposits[account].amount > 0) {
+            return _stakeDeposits[account].endDate == 0 ? DepositStatus.Deposited : DepositStatus.WithdrawalInitialized;
+        }
+        return DepositStatus.WithdrawalExecuted;
+    }
+
+    function timeUntilWithdrawal(address account)
+    external
+    onlyAfterSetup
+    view
+    returns (uint256)
+    {
+        require(status(account) == DepositStatus.WithdrawalInitialized, "[Validation] Withdrawal not initialized");
+        StakeDeposit memory stakeDeposit = _stakeDeposits[account];
+        return stakeDeposit.endDate - now;
     }
 
     function getStakeDeposit()
@@ -293,22 +330,23 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     }
 
     // OWNER SETUP
-    function setupStakingLimit(uint256 maxAmount, uint256 initialAmount, uint256 daysInterval, uint256 unstakingPeriod)
+    function setupStakingLimit(uint256[] calldata amounts, uint256 daysInterval, uint256 unstakingPeriod)
     external
     onlyOwner
     whenPaused
     onlyDuringSetup
     {
-        require(maxAmount > 0 && initialAmount > 0 && daysInterval > 0 && unstakingPeriod >= 0, "[Validation] Some parameters are 0");
-        require(maxAmount.mod(initialAmount) == 0, "[Validation] maxAmount should be a multiple of initialAmount");
+        for (uint256 i = 0; i < amounts.length; i++) {
+            require(amounts[i] > 0, "[Validation] some of amounts are 0");
+            if (i != 0) {
+                require(amounts[i] > amounts[i-1], "[Validation] rewards should be in ascending order");
+            }
+        }
+        require(daysInterval > 0 && unstakingPeriod >= 0, "[Validation] Some parameters are 0");
 
-        uint256 maxIntervals = maxAmount.div(initialAmount);
         // set the staking limits
-        stakingLimitConfig.maxAmount = maxAmount;
-        stakingLimitConfig.initialAmount = initialAmount;
         stakingLimitConfig.daysInterval = daysInterval;
         stakingLimitConfig.unstakingPeriod = unstakingPeriod;
-        stakingLimitConfig.maxIntervals = maxIntervals;
 
         setupState.staking = true;
         _updateSetupState();
@@ -354,7 +392,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
             return;
         }
 
-        currentStatus = Status.Running;
+        currentContractStatus = ContractStatus.Running;
     }
 
     function _computeCurrentStakingLimit()
@@ -363,12 +401,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     returns (uint256)
     {
         uint256 intervalsPassed = _getIntervalsPassed();
-        uint256 baseStakingLimit = stakingLimitConfig.initialAmount;
-
-        uint256 intervals = intervalsPassed.min(stakingLimitConfig.maxIntervals - 1);
-
-        // initialLimit * ((now - launchMoment) / interval)
-        return baseStakingLimit.add(baseStakingLimit.mul(intervals));
+        return stakingLimitConfig.amounts[intervalsPassed];
     }
 
     function _getIntervalsPassed()
@@ -463,14 +496,14 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     function _updateBaseRewardHistory()
     private
     {
-        if (currentStatus == Status.RewardsDisabled) {
+        if (currentContractStatus == ContractStatus.RewardsDisabled) {
             return;
         }
 
         BaseReward memory currentBaseReward = _currentBaseReward();
 
-        // Do nothing if currentTotalStake is in the current base reward bounds
-        if (currentBaseReward.lowerBound <= currentTotalStake && currentTotalStake <= currentBaseReward.upperBound) {
+        // Do nothing if currentTotalStake is in the current base reward bounds or lower
+        if (currentTotalStake <= currentBaseReward.upperBound) {
             return;
         }
 
