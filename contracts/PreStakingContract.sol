@@ -91,9 +91,8 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
     modifier guardForPrematureWithdrawal()
     {
-        uint256 intervalsPassed = _getIntervalsPassed();
-        require(now >= (2 * stakingLimitConfig.daysInterval + 3 days), "[Withdraw] Not enough days passed");
-        // require(now >= (2 * stakingLimitConfig.daysInterval), "[Withdraw] Not enough days passed");
+        uint256 intervalsPassed = _getIntervalsPassed(); 
+        require(now >= (launchTimestamp + ((2 * stakingLimitConfig.daysInterval) * 1 days) + 3 days), "[Withdraw] Not enough days passed");
         _;
     }
 
@@ -290,6 +289,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         return (s.amount, s.startDate, s.endDate, s.startCheckpointIndex, s.endCheckpointIndex);
     }
 
+
     function baseRewardsLength()
     external
     onlyAfterSetup
@@ -329,6 +329,13 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         return (c.baseRewardIndex, c.startTimestamp, c.endTimestamp, c.fromBlock);
     }
 
+    function getLimitAmounts()
+    external
+    view
+    returns(uint256[] memory) {
+        return stakingLimitConfig.amounts;
+    }
+
     // OWNER SETUP
     function setupStakingLimit(uint256[] calldata amounts, uint256 daysInterval, uint256 unstakingPeriod)
     external
@@ -342,9 +349,12 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
                 require(amounts[i] > amounts[i-1], "[Validation] rewards should be in ascending order");
             }
         }
+      
         require(daysInterval > 0 && unstakingPeriod >= 0, "[Validation] Some parameters are 0");
 
-        // set the staking limits
+        for (uint256 i = 0; i < amounts.length; i++) {
+            stakingLimitConfig.amounts.push(amounts[i]);
+        }
         stakingLimitConfig.daysInterval = daysInterval;
         stakingLimitConfig.unstakingPeriod = unstakingPeriod;
 
