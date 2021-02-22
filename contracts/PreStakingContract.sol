@@ -329,6 +329,17 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         return (c.baseRewardIndex, c.startTimestamp, c.endTimestamp, c.fromBlock);
     }
 
+    function baseRewardIndex(uint256 index)
+    external
+    onlyAfterSetup
+    view
+    returns (uint256)
+    {
+        BaseRewardCheckpoint memory c = _baseRewardHistory[index];
+
+        return (c.baseRewardIndex);
+    }
+
     function getLimitAmounts()
     external
     view

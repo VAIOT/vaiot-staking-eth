@@ -5,7 +5,7 @@ import { Contract, BigNumber } from 'ethers'
 import { solidity, MockProvider, createFixtureLoader, deployContract } from 'ethereum-waffle'
 
 import { preStakingFixture } from './fixtures'
-import { mineBlock } from './utils'
+import { mineBlock, expandTo18Decimals } from './utils'
 
 import PreStakingContract from '../build/PreStakingContract.json'
 
@@ -13,7 +13,6 @@ chai.use(solidity)
 
 const preStakingConfig = {
   amounts: [
-
     BigNumber.from("1736460000000000000000000"),
     BigNumber.from("2131987000000000000000000"),
     BigNumber.from("2532907550000000000000000"),
@@ -37,8 +36,8 @@ const Status = {
   RewardsDisabled: 2,
 }
 
-const depositAmount = BigNumber.from("1736460000000000000")
-const rewardsAmount = BigNumber.from("4676921000000000000000000")
+const depositAmount = BigNumber.from("1000000")
+const rewardsAmount = expandTo18Decimals(4676921)
 const bigDepositAmount = BigNumber.from("20000000000000000000")
 
 const rewardsConfig = {
@@ -47,22 +46,22 @@ const rewardsConfig = {
     {
       anualRewardRate: BigNumber.from(17),
       lowerBound: BigNumber.from("0"),
-      upperBound: BigNumber.from("5125000000000000000000000"),
+      upperBound: expandTo18Decimals(5125000)
     },
     {
       anualRewardRate: BigNumber.from(19),
-      lowerBound: BigNumber.from("5125000000000000000000000"),
-      upperBound: BigNumber.from("10250000000000000000000000"),
+      lowerBound: expandTo18Decimals(5125000),
+      upperBound: expandTo18Decimals(10250000)
     },
     {
       anualRewardRate: BigNumber.from(21),
-      lowerBound: BigNumber.from("10250000000000000000000000"),
-      upperBound: BigNumber.from("15375000000000000000000000"),
+      lowerBound: expandTo18Decimals(10250000),
+      upperBound: expandTo18Decimals(15375000)
     },
     {
       anualRewardRate: BigNumber.from(23),
-      lowerBound: BigNumber.from("15375000000000000000000000"),
-      upperBound: BigNumber.from("20500000000000000000000000"),
+      lowerBound: expandTo18Decimals(15375000),
+      upperBound: expandTo18Decimals(20500000)
     },
   ]
 }
@@ -104,36 +103,36 @@ describe('PreStakingContract', () => {
       await expect(deployContract(wallet, PreStakingContract, [token.address, rewardsAmount])).to.be.reverted
       await expect(deployContract(wallet, PreStakingContract, ['token.address', rewardsWallet.address])).to.be.reverted
       await expect(deployContract(wallet, PreStakingContract, [0, rewardsWallet.address])).to.be.reverted
-    });
+    })
 
     it('1.2. should revert when the token address is not a contract', async () => {
-      const revertMessage = "The address does not contain a contract";
+      const revertMessage = "The address does not contain a contract"
       await expect(deployContract(wallet, PreStakingContract, [account1.address, rewardsWallet.address])).to.be.revertedWith(revertMessage)
-    });
+    })
 
     it('1.3. should revert when _rewardsAddress is the zero address', async () => {
-      const revertMessage = " _rewardsAddress is the zero address";
+      const revertMessage = " _rewardsAddress is the zero address"
       await expect(deployContract(wallet, PreStakingContract, [token.address, '0x0000000000000000000000000000000000000000'])).to.be.revertedWith(revertMessage)
-    });
-  });
+    })
+  })
 
   describe('2. On deployment', () => {
     it('2.1. should set the right owner', async () => {
-      expect(await preStakingContract.owner()).to.be.equal(wallet.address);
-    });
+      expect(await preStakingContract.owner()).to.be.equal(wallet.address)
+    })
 
     it('2.2. should set the token correctly', async () => {
-      expect(await preStakingContract.token()).to.equal(token.address);
-    });
+      expect(await preStakingContract.token()).to.equal(token.address)
+    })
 
     it('2.3. should set the right rewardsAddress', async () => {
-      expect(await preStakingContract.rewardsAddress()).to.equal(rewardsWallet.address);
-    });
+      expect(await preStakingContract.rewardsAddress()).to.equal(rewardsWallet.address)
+    })
 
     it('2.4. should set the currentStatus to Setup', async () => {
-      expect((await preStakingContract.currentContractStatus())).to.equal(Status.Setup);
-    });
-  });
+      expect((await preStakingContract.currentContractStatus())).to.equal(Status.Setup)
+    })
+  })
 
   describe('3. Setup', () => {
     it('3.1. setupStakingLimit: should throw if called with wrong argument types', async () => {
@@ -607,16 +606,16 @@ describe('PreStakingContract', () => {
 
       let transferEvent = new Promise((resolve, reject) => {
         preStakingContract.on('WithdrawExecuted', (account, amount, reward, event) => {
-          event.removeListener();
+          event.removeListener()
 
           if (account == account1.address) {
             reward1 = reward
           }
           resolve({
-          });
-        });
-      });
-      await transferEvent;
+          })
+        })
+      })
+      await transferEvent
 
       //Account 2
       await preStakingContract.toggleRewards(true)
@@ -630,16 +629,16 @@ describe('PreStakingContract', () => {
 
       let transferEvent2 = new Promise((resolve, reject) => {
         preStakingContract.on('WithdrawExecuted', (account, amount, reward, event) => {
-          event.removeListener();
+          event.removeListener()
 
           if (account == account2.address) {
             reward2 = reward
           }
           resolve({
-          });
-        });
-      });
-      await transferEvent2;
+          })
+        })
+      })
+      await transferEvent2
 
       await expect(reward1).to.be.equal(reward2.div(BigNumber.from(2)))
     })
@@ -729,10 +728,10 @@ describe('PreStakingContract', () => {
       await expect(stake).to.be.equal(BigNumber.from(0))
 
       const launchTimestamp = await preStakingContract1.launchTimestamp()
-      await mineBlock(provider, launchTimestamp.add(10 * numberOfSecondsInOneDay).sub(1).toNumber())
+      await mineBlock(provider, launchTimestamp.add(10.5 * numberOfSecondsInOneDay).sub(1).toNumber())
       const stake1 = await preStakingContract1.earned(account1.address)
       // Result got from the excel simulation '4890.41095890411'
-      const expectedReward = '7606408413698630'
+      const expectedReward = '4890'
       const actualReward = stake1.div(BigNumber.from(1))
       await expect(actualReward).to.equal(expectedReward)
     })
