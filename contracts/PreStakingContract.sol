@@ -233,8 +233,9 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     view
     returns (uint256)
     {
-        require(_stakeDeposits[account].exists && _stakeDeposits[account].amount != 0, "[Validation] This account doesn't have a stake deposit");
-
+        if (!_stakeDeposits[account].exists || _stakeDeposits[account].amount == 0) {
+            return 0;
+        }
         StakeDeposit memory stakeDeposit = _stakeDeposits[account];
         stakeDeposit.endDate = now;
 
@@ -272,7 +273,9 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     view
     returns (uint256)
     {
-        require(status(account) == DepositStatus.WithdrawalInitialized, "[Validation] Withdrawal not initialized");
+        if (status(account) != DepositStatus.WithdrawalInitialized) {
+            return 0;
+        }
         StakeDeposit memory stakeDeposit = _stakeDeposits[account];
         return stakeDeposit.endDate - now;
     }
@@ -289,6 +292,16 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         return (s.amount, s.startDate, s.endDate, s.startCheckpointIndex, s.endCheckpointIndex);
     }
 
+    function rewardRate()
+    external
+    onlyAfterSetup
+    view
+    returns (uint256)
+    {
+        BaseReward memory br = rewardConfig.baseRewards[_baseRewardHistory[_baseRewardHistory.length - 1].baseRewardIndex];
+
+        return br.anualRewardRate;
+    }
 
     function baseRewardsLength()
     external
