@@ -36,7 +36,7 @@ const depositThreshold = BigNumber.from("125000000000")
 const bigDepositThreshold = expandTo18Decimals(5225000)
 
 const rewardsConfig = {
-  multiplier: BigNumber.from(5),
+  multiplier: BigNumber.from(2),
   rewardRates: [
     {
       anualRewardRate: BigNumber.from(17),
@@ -99,7 +99,8 @@ describe('RewardsCalculation', () => {
       await token.connect(wallet).transfer(account8.address, bigDepositThreshold)
 
       //allow staking contract
-      await token.connect(wallet).approve(preStakingContract.address, bigDepositThreshold)
+      await token.connect(wallet).approve(preStakingContract.address, bigDepositThreshold.mul(BigNumber.from(2)))
+      await token.connect(rewardsWallet).approve(preStakingContract.address, rewardsAmount)
       await token.connect(account1).approve(preStakingContract.address, bigDepositThreshold)
       await token.connect(account2).approve(preStakingContract.address, bigDepositThreshold)
       await token.connect(account3).approve(preStakingContract.address, bigDepositThreshold)
@@ -121,8 +122,8 @@ describe('RewardsCalculation', () => {
       await preStakingContract.unpause()
     })
 
-    it('1.1 should return 59898 reward', async () => {
-      const expectedReward = BigNumber.from('59898')
+    it('1.1 should return 48830 reward', async () => {
+      const expectedReward = BigNumber.from('48830')
       // Computed via the spreadsheet
       const timestamp = (await provider.getBlock("latest")).timestamp
 
@@ -146,34 +147,34 @@ describe('RewardsCalculation', () => {
     })
 
     it('1.2', async () => {
-
       const timestamp = (await provider.getBlock("latest")).timestamp
-      await mineBlock(provider, timestamp + 30 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account1).deposit(preStakingConfig.amounts[0])
 
-      await mineBlock(provider, timestamp + 60 * numberOfSecondsInOneDay)
+      await mineBlock(provider, timestamp + 30 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account2).deposit(preStakingConfig.amounts[1].sub(preStakingConfig.amounts[0]))
 
-      await mineBlock(provider, timestamp + 90 * numberOfSecondsInOneDay)
+      await mineBlock(provider, timestamp + 60 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account3).deposit(preStakingConfig.amounts[2].sub(preStakingConfig.amounts[1]))
 
-      await mineBlock(provider, timestamp + 120 * numberOfSecondsInOneDay)
+      await mineBlock(provider, timestamp + 90 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account4).deposit(preStakingConfig.amounts[3].sub(preStakingConfig.amounts[2]))
 
-      await mineBlock(provider, timestamp + 150 * numberOfSecondsInOneDay)
+      await mineBlock(provider, timestamp + 120 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account5).deposit(preStakingConfig.amounts[4].sub(preStakingConfig.amounts[3]))
 
-      await mineBlock(provider, timestamp + 180 * numberOfSecondsInOneDay)
+      await mineBlock(provider, timestamp + 150 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account6).deposit(preStakingConfig.amounts[5].sub(preStakingConfig.amounts[4]))
 
-      await mineBlock(provider, timestamp + 210 * numberOfSecondsInOneDay)
+      await mineBlock(provider, timestamp + 180 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account7).deposit(preStakingConfig.amounts[6].sub(preStakingConfig.amounts[5]))
 
-      await mineBlock(provider, timestamp + 240 * numberOfSecondsInOneDay)
+      await mineBlock(provider, timestamp + 210 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account8).deposit(preStakingConfig.amounts[7].sub(preStakingConfig.amounts[6]))
 
       await mineBlock(provider, timestamp + 270 * numberOfSecondsInOneDay)
-      await preStakingContract.connect(wallet).deposit(preStakingConfig.amounts[8].sub(preStakingConfig.amounts[7]))
+      await preStakingContract.connect(wallet).deposit(preStakingConfig.amounts[9].sub(preStakingConfig.amounts[7]))
+
+      await mineBlock(provider, timestamp + 300 * numberOfSecondsInOneDay)
 
       let currentReward = BigNumber.from(0)
       currentReward = currentReward.add(await preStakingContract.earned(account1.address))
@@ -186,7 +187,7 @@ describe('RewardsCalculation', () => {
       currentReward = currentReward.add(await preStakingContract.earned(account8.address))
       currentReward = currentReward.add(await preStakingContract.earned(wallet.address))
 
-      await expect(currentReward).to.be.equal(BigNumber.from("3416451542090136986297181"))
+      await expect(currentReward).to.be.equal(BigNumber.from("4117371161286854794477527"))
     })
 
     it('1.3', async () => {
@@ -209,7 +210,7 @@ describe('RewardsCalculation', () => {
       await mineBlock(provider, timestamp + 330 * numberOfSecondsInOneDay)
 
       const currentReward = await preStakingContract.earned(account1.address)
-      await expect(currentReward).to.be.equal(407301)
+      await expect(currentReward).to.be.equal(255139)
     })
   })
 })

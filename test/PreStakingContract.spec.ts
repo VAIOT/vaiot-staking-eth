@@ -38,10 +38,10 @@ const Status = {
 
 const depositAmount = BigNumber.from("1000000")
 const rewardsAmount = expandTo18Decimals(4676921)
-const bigDepositAmount = BigNumber.from("20000000000000000000")
+const bigDepositAmount = BigNumber.from("2000000000000000000000000")
 
 const rewardsConfig = {
-  multiplier: BigNumber.from(5),
+  multiplier: BigNumber.from(2),
   rewardRates: [
     {
       anualRewardRate: BigNumber.from(17),
@@ -673,9 +673,7 @@ describe('PreStakingContract', () => {
       const timestamp = (await provider.getBlock("latest")).timestamp
       await mineBlock(provider, timestamp + 2 * numberOfSecondsInOneDay)
 
-      await expect(preStakingContract.connect(account1).deposit(bigDepositAmount),
-        "[Deposit] Your deposit would exce.ed the current staking limit"
-      )
+      await expect(preStakingContract.connect(account1).deposit(bigDepositAmount)).to.be.revertedWith("Your deposit would exceed the current staking limit")
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
       await expect(currentStakingLimit).to.be.equal(BigNumber.from("1736460000000000000000000"))
@@ -694,7 +692,7 @@ describe('PreStakingContract', () => {
       await mineBlock(provider, timestamp + 60 * numberOfSecondsInOneDay)
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      await expect(currentStakingLimit).to.be.equal(BigNumber.from("2532907000000000000000000"))
+      await expect(currentStakingLimit).to.be.equal(BigNumber.from("2532907550000000000000000"))
     })
 
     it('6.4. should advance the staking limit to the maximum amount and not more', async () => {
@@ -730,8 +728,8 @@ describe('PreStakingContract', () => {
       const launchTimestamp = await preStakingContract1.launchTimestamp()
       await mineBlock(provider, launchTimestamp.add(10.5 * numberOfSecondsInOneDay).sub(1).toNumber())
       const stake1 = await preStakingContract1.earned(account1.address)
-      // Result got from the excel simulation '4890.41095890411'
-      const expectedReward = '4890'
+
+      const expectedReward = '4750'
       const actualReward = stake1.div(BigNumber.from(1))
       await expect(actualReward).to.equal(expectedReward)
     })
@@ -758,9 +756,7 @@ describe('PreStakingContract', () => {
       await preStakingContract.unpause()
 
       await preStakingContract.connect(account1).deposit(depositAmount)
-    })
 
-    it('8.1. should revert when making a second deposit even after withdrawing', async () => {
       const timestamp = (await provider.getBlock("latest")).timestamp
       await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account1).initiateWithdrawal()
@@ -768,22 +764,21 @@ describe('PreStakingContract', () => {
       const timestamp2 = (await provider.getBlock("latest")).timestamp
       await mineBlock(provider, timestamp2 + 7 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account1).executeWithdrawal()
+    })
 
+    it('8.1. should revert when making a second deposit even after withdrawing', async () => {
       await token.connect(account1).approve(preStakingContract.address, depositAmount)
-      await expect(
-        preStakingContract.connect(account1).deposit(depositAmount),
-        "[Deposit] You already have a stake"
-      )
+      await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.be.revertedWith("You already have a stake")
     })
 
     it('8.2. should revert when calling again initiateWithdrawal', async () => {
-      const message = "[Initiate Withdrawal] There is no stake deposit for this account"
-      await expect(preStakingContract.connect(account1).initiateWithdrawal(), message)
+      const message = "There is no stake deposit for this account"
+      await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.be.revertedWith(message)
     })
 
     it('8.3. should revert when calling again executeWithdrawal', async () => {
-      const message = "[Withdraw] There is no stake deposit for this account"
-      await expect(preStakingContract.connect(account1).executeWithdrawal(), message)
+      const message = "There is no stake deposit for this account"
+      await expect(preStakingContract.connect(account1).executeWithdrawal()).to.be.revertedWith(message)
     })
   })
 })
