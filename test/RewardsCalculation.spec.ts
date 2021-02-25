@@ -187,7 +187,7 @@ describe('RewardsCalculation', () => {
       currentReward = currentReward.add(await preStakingContract.earned(account8.address))
       currentReward = currentReward.add(await preStakingContract.earned(wallet.address))
 
-      await expect(currentReward).to.be.equal(BigNumber.from("4117371161286854794477527"))
+      await expect(currentReward).to.be.equal(BigNumber.from("4115542201171029589020262"))
     })
 
     it('1.3', async () => {

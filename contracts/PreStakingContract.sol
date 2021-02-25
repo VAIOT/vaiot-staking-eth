@@ -184,6 +184,11 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         uint256 reward = _computeReward(stakeDeposit);
 
         stakeDeposit.amount = 0;
+        stakeDeposit.startDate = 0;
+        stakeDeposit.endDate = 0;
+        stakeDeposit.startCheckpointIndex = 0;
+        stakeDeposit.endCheckpointIndex = 0;
+        stakeDeposit.exists = false;
 
         currentTotalStake = currentTotalStake.sub(amount);
         _updateBaseRewardHistory();
@@ -267,17 +272,17 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         return DepositStatus.WithdrawalExecuted;
     }
 
-    function timeUntilWithdrawal(address account)
+    function withdrawalTime(address account)
     external
     onlyAfterSetup
     view
     returns (uint256)
     {
+        StakeDeposit memory stakeDeposit = _stakeDeposits[account];
         if (status(account) != DepositStatus.WithdrawalInitialized) {
             return 0;
         }
-        StakeDeposit memory stakeDeposit = _stakeDeposits[account];
-        return stakeDeposit.endDate - now;
+        return stakeDeposit.endDate + (stakingLimitConfig.unstakingPeriod * 1 days);
     }
 
     function getStakeDeposit()
@@ -458,7 +463,6 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         if (stakingPeriod == 0) {
             return 0;
         }
-
         // scaling weightedSum and stakingPeriod because the weightedSum is in the thousands magnitude
         // and we risk losing detail while rounding
         weightedSum = weightedSum.mul(scale);

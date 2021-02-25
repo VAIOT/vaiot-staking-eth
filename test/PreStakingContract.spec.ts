@@ -439,6 +439,10 @@ describe('PreStakingContract', () => {
         // 60 Days passed
         await mineBlock(provider, launchTimestamp.add(60 * numberOfSecondsInOneDay).sub(1).toNumber())
         await expect(preStakingContract1.connect(account1).initiateWithdrawal()).to.be.revertedWith(revertMessage)
+
+        // 64 Days passed
+        await mineBlock(provider, launchTimestamp.add(64 * numberOfSecondsInOneDay).sub(1).toNumber())
+        await expect(preStakingContract1.connect(account1).initiateWithdrawal()).to.emit(preStakingContract1, 'WithdrawInitiated')
       })
 
       it('4.11. initiateWithdrawal: should revert if the account has no stake deposit', async () => {
@@ -723,7 +727,7 @@ describe('PreStakingContract', () => {
       await expect(preStakingContract1.connect(account1).deposit(depositAmount)).to.emit(preStakingContract1, 'StakeDeposited').withArgs(account1.address, depositAmount)
 
       const stake = await preStakingContract1.earned(account1.address)
-      await expect(stake).to.be.equal(BigNumber.from(0))
+      expect(stake).to.be.equal(BigNumber.from(0))
 
       const launchTimestamp = await preStakingContract1.launchTimestamp()
       await mineBlock(provider, launchTimestamp.add(10.5 * numberOfSecondsInOneDay).sub(1).toNumber())
@@ -731,7 +735,7 @@ describe('PreStakingContract', () => {
 
       const expectedReward = '4750'
       const actualReward = stake1.div(BigNumber.from(1))
-      await expect(actualReward).to.equal(expectedReward)
+      expect(actualReward).to.equal(expectedReward)
     })
   })
 
@@ -766,17 +770,12 @@ describe('PreStakingContract', () => {
       await preStakingContract.connect(account1).executeWithdrawal()
     })
 
-    it('8.1. should revert when making a second deposit even after withdrawing', async () => {
-      await token.connect(account1).approve(preStakingContract.address, depositAmount)
-      await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.be.revertedWith("You already have a stake")
-    })
-
-    it('8.2. should revert when calling again initiateWithdrawal', async () => {
+    it('8.1. should revert when calling again initiateWithdrawal', async () => {
       const message = "There is no stake deposit for this account"
       await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.be.revertedWith(message)
     })
 
-    it('8.3. should revert when calling again executeWithdrawal', async () => {
+    it('8.2. should revert when calling again executeWithdrawal', async () => {
       const message = "There is no stake deposit for this account"
       await expect(preStakingContract.connect(account1).executeWithdrawal()).to.be.revertedWith(message)
     })
