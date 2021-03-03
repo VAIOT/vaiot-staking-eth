@@ -12,8 +12,18 @@ const preStakingCompiled = require('../build/PreStakingContract.json');
 
 	console.log(`Attempting to deploy from account: ${accounts[0]}`);
 
-	const tx = await new web3.eth.Contract(preStakingCompiled.abi, "0x10C3a1d33484F2bA3F349afe42359216888016c6")
-		.methods.setupStakingLimit(["100000000000000000000", "200000000000000000000", "300000000000000000000", "400000000000000000000", "500000000000000000000", "600000000000000000000", "700000000000000000000", "800000000000000000000", "900000000000000000000", "1000000000000000000000"], 1, 1)
+	const tx = await new web3.eth.Contract(preStakingCompiled.abi, "0x590d4780eD198e17F1592F17Bb214322da7694aE")
+		.methods.setupStakingLimit(
+			[expandDecimals("1736000"),
+			expandDecimals("2131000"),
+			expandDecimals("2532000"),
+			expandDecimals("5256000"),
+			expandDecimals("7549000"),
+			expandDecimals("9850000"),
+			expandDecimals("12843000"),
+			expandDecimals("14796000"),
+			expandDecimals("16967000"),
+			expandDecimals("20500000")], 30, 7)
 		.send({
 			from: accounts[0],
 			gas: '3000000',
@@ -32,8 +42,16 @@ const preStakingCompiled = require('../build/PreStakingContract.json');
 
 	console.log(`Attempting to deploy from account: ${accounts[0]}`);
 
-	const tx = await new web3.eth.Contract(preStakingCompiled.abi, "0x10C3a1d33484F2bA3F349afe42359216888016c6")
-		.methods.setupRewards(5, [17, 19, 21, 23], ["0", "100000000000000000000", "200000000000000000000", "300000000000000000000"], ["100000000000000000000", "200000000000000000000", "300000000000000000000", "400000000000000000000"])
+	const tx = await new web3.eth.Contract(preStakingCompiled.abi, "0x590d4780eD198e17F1592F17Bb214322da7694aE")
+		.methods.setupRewards(2, [17, 19, 21, 23],
+			["0",
+			expandDecimals("5125000"),
+			expandDecimals("10250000"),
+			expandDecimals("15375000")],
+			[expandDecimals("5125000"),
+			expandDecimals("10250000"),
+			expandDecimals("15375000"),
+			expandDecimals("20500000")])
 		.send({
 			from: accounts[0],
 			gas: '3000000',
@@ -46,3 +64,7 @@ const preStakingCompiled = require('../build/PreStakingContract.json');
 
 	provider.engine.stop();
 })();
+
+function expandDecimals(value) {
+	return value + "000000000000000000";
+}

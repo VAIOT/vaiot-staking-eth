@@ -28,19 +28,18 @@ export async function stakingRewardsFixture([wallet]: Wallet[]): Promise<Staking
 
   return { stakingRewards, rewardsToken, stakingToken }
 }
+interface PreStakingFixture {
+  token: Contract
+  preStakingContract: Contract
+}
 
-// interface PreStakingFixture {
-//   token: Contract
-//   preStakingContract: Contract
-// }
+export async function preStakingFixture (
+  [wallet, rewardsWallet]: Wallet[],
+  provider: providers.Web3Provider
+): Promise<PreStakingFixture> {
 
-// export async function preStakingFixture (
-//   [wallet, rewardsWallet]: Wallet[],
-//   provider: providers.Web3Provider
-// ): Promise<PreStakingFixture> {
+  const token = await deployContract(wallet, TestERC20, [expandTo18Decimals(400_000_000)])
+  const preStakingContract = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
 
-//   const token = await deployContract(wallet, TestERC20, [expandTo18Decimals(400_000_000)])
-//   const preStakingContract = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
-
-//   return { token, preStakingContract }
-// }
+  return { token, preStakingContract }
+}
