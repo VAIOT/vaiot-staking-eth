@@ -8,6 +8,8 @@ import UniswapV2ERC20 from '@uniswap/v2-core/build/ERC20.json'
 import TestERC20 from '../build/TestERC20.json'
 import StakingRewards from '../build/StakingRewards.json'
 import PreStakingContract from '../build/PreStakingContract.json'
+import VAILockup from '../build/VAILockup.json'
+import { Address } from 'ethereumjs-util'
 
 chai.use(solidity)
 
@@ -31,6 +33,7 @@ export async function stakingRewardsFixture([wallet]: Wallet[]): Promise<Staking
 interface PreStakingFixture {
   token: Contract
   preStakingContract: Contract
+  lockupContract: Contract
 }
 
 export async function preStakingFixture (
@@ -40,6 +43,7 @@ export async function preStakingFixture (
 
   const token = await deployContract(wallet, TestERC20, [expandTo18Decimals(400_000_000)])
   const preStakingContract = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
+  const lockupContract = await deployContract(wallet, VAILockup, [token.address, 30, 4])
 
-  return { token, preStakingContract }
+  return { token, preStakingContract, lockupContract }
 }

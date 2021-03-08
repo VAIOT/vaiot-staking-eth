@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/lifecycle/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/ownership/Ownable.sol";
+import "contracts/interfaces/IVAILockup.sol";
 
 contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
@@ -20,10 +21,13 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
     enum DepositStatus {NoDeposit, Deposited, WithdrawalInitialized, WithdrawalExecuted}
 
+    IVAILockup ivaiLockup;
+
     // EVENTS
     event StakeDeposited(address indexed account, uint256 amount);
-    event WithdrawInitiated(address indexed account, uint256 amount);
+    event LookupStakeDeposited(address indexed account, uint256 amount);
     event WithdrawExecuted(address indexed account, uint256 amount, uint256 reward);
+    event LookupWithdrawExecuted(address indexed account, uint256 amount, uint256 reward);
 
     // STRUCT DECLARATIONS
     struct StakeDeposit {
@@ -33,6 +37,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         uint256 startCheckpointIndex;
         uint256 endCheckpointIndex;
         bool exists;
+        bool lockup;
     }
 
     struct SetupState {
@@ -74,6 +79,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     RewardConfig public rewardConfig;
 
     address public rewardsAddress;
+
     uint256 public launchTimestamp;
     uint256 public currentTotalStake;
 
@@ -143,6 +149,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         stakeDeposit.startDate = now;
         stakeDeposit.startCheckpointIndex = _baseRewardHistory.length - 1;
         stakeDeposit.exists = true;
+        stakeDeposit.lockup = false;
 
         currentTotalStake = currentTotalStake.add(amount);
         _updateBaseRewardHistory();
@@ -152,19 +159,32 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         emit StakeDeposited(msg.sender, amount);
     }
 
-    function initiateWithdrawal()
-    external
-    whenNotPaused
+    function depositLockup(uint256 amount)
+    public
+    nonReentrant
     onlyAfterSetup
-    guardForPrematureWithdrawal
+    whenNotPaused
     {
-        StakeDeposit storage stakeDeposit = _stakeDeposits[msg.sender];
-        require(stakeDeposit.exists && stakeDeposit.amount != 0, "[Initiate Withdrawal] There is no stake deposit for this account");
-        require(stakeDeposit.endDate == 0, "[Initiate Withdrawal] You already initiated the withdrawal");
+        require(amount > 0, "[Validation] The stake deposit has to be larger than 0");
+        require(!_stakeDeposits[msg.sender].exists, "[Deposit] You already have a stake");
+        require(ivaiLockup.beneficiaryCurrentAmount(msg.sender) >= amount, "[Validation] You don't have enough funds");
 
-        stakeDeposit.endDate = now;
-        stakeDeposit.endCheckpointIndex = _baseRewardHistory.length - 1;
-        emit WithdrawInitiated(msg.sender, stakeDeposit.amount);
+        StakeDeposit storage stakeDeposit = _stakeDeposits[msg.sender];
+        stakeDeposit.amount = stakeDeposit.amount.add(amount);
+        stakeDeposit.startDate = now;
+        stakeDeposit.startCheckpointIndex = _baseRewardHistory.length - 1;
+        stakeDeposit.exists = true;
+        stakeDeposit.lockup = true;
+
+        currentTotalStake = currentTotalStake.add(amount);
+        _updateBaseRewardHistory();
+
+        // Transfer the Tokens to this contract
+        require(token.transferFrom(address(ivaiLockup), address(this), amount), "[Deposit] Something went wrong during the token transfer");
+        
+        ivaiLockup.stake(msg.sender, amount);
+
+        emit LookupStakeDeposited(msg.sender, amount);
     }
 
     function executeWithdrawal()
@@ -172,13 +192,14 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     nonReentrant
     whenNotPaused
     onlyAfterSetup
+    guardForPrematureWithdrawal
     {
         StakeDeposit storage stakeDeposit = _stakeDeposits[msg.sender];
         require(stakeDeposit.exists && stakeDeposit.amount != 0, "[Withdraw] There is no stake deposit for this account");
-        require(stakeDeposit.endDate != 0, "[Withdraw] Withdraw is not initialized");
-        // validate enough days have passed from initiating the withdrawal
-        uint256 daysPassed = (now - stakeDeposit.endDate) / 1 days;
-        require(stakingLimitConfig.unstakingPeriod <= daysPassed, "[Withdraw] The unstaking period did not pass");
+        require(stakeDeposit.lockup == false, "[Withdraw] This deposit is lockup");
+       
+        stakeDeposit.endDate = now;
+        stakeDeposit.endCheckpointIndex = _baseRewardHistory.length - 1;
 
         uint256 amount = stakeDeposit.amount;
         uint256 reward = _computeReward(stakeDeposit);
@@ -197,6 +218,41 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         require(token.transferFrom(rewardsAddress, msg.sender, reward), "[Withdraw] Something went wrong while transferring your reward");
 
         emit WithdrawExecuted(msg.sender, amount, reward);
+    }
+
+    function withdrawLockup()
+    external
+    nonReentrant
+    whenNotPaused
+    onlyAfterSetup
+    guardForPrematureWithdrawal
+    {
+        StakeDeposit storage stakeDeposit = _stakeDeposits[msg.sender];
+        require(stakeDeposit.exists && stakeDeposit.amount != 0, "[Withdraw] There is no stake deposit for this account");
+        require(stakeDeposit.lockup == true, "[Withdraw] This deposit is not lockup");
+       
+        stakeDeposit.endDate = now;
+        stakeDeposit.endCheckpointIndex = _baseRewardHistory.length - 1;
+
+        uint256 amount = stakeDeposit.amount;
+        uint256 reward = _computeReward(stakeDeposit);
+
+        stakeDeposit.amount = 0;
+        stakeDeposit.startDate = 0;
+        stakeDeposit.endDate = 0;
+        stakeDeposit.startCheckpointIndex = 0;
+        stakeDeposit.endCheckpointIndex = 0;
+        stakeDeposit.exists = false;
+
+        currentTotalStake = currentTotalStake.sub(amount);
+        _updateBaseRewardHistory();
+
+        require(token.transfer(address(ivaiLockup), amount), "[Withdraw] Something went wrong while transferring your initial deposit");
+        require(token.transferFrom(rewardsAddress, address(ivaiLockup), reward), "[Withdraw] Something went wrong while transferring your reward");
+
+        ivaiLockup.unstake(msg.sender, amount, reward);
+
+        emit LookupWithdrawExecuted(msg.sender, amount, reward);
     }
 
     function toggleRewards(bool enabled)
@@ -223,6 +279,16 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     }
 
     // VIEW FUNCTIONS FOR HELPING THE USER AND CLIENT INTERFACE
+    function isLockup(address account)
+    public
+    onlyAfterSetup
+    view
+    returns (bool)
+    {
+        StakeDeposit memory stakeDeposit = _stakeDeposits[account];
+        return stakeDeposit.lockup;
+    }
+
     function currentStakingLimit()
     public
     onlyAfterSetup
@@ -243,6 +309,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         }
         StakeDeposit memory stakeDeposit = _stakeDeposits[account];
         stakeDeposit.endDate = now;
+        stakeDeposit.endCheckpointIndex = _baseRewardHistory.length - 1;
 
         return (_computeReward(stakeDeposit));
     }
@@ -421,6 +488,15 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
         setupState.rewards = true;
         _updateSetupState();
+    }
+
+    function setLockupAddress(address lockup)
+    public
+    onlyOwner
+    whenPaused
+    onlyDuringSetup
+    {
+        ivaiLockup = IVAILockup(lockup);
     }
 
     // INTERNAL

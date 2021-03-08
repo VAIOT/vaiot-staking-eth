@@ -8,6 +8,7 @@ import { preStakingFixture } from './fixtures'
 import { mineBlock, expandTo18Decimals } from './utils'
 
 import PreStakingContract from '../build/PreStakingContract.json'
+import VAILockup from '../build/VAILockup.json'
 
 chai.use(solidity)
 
@@ -77,6 +78,7 @@ const transformRewardToString = (element: { anualRewardRate: { toString: () => a
   }
 }
 const numberOfSecondsInOneDay = 86400
+const amount = BigNumber.from(256);
 
 describe('PreStakingContract', () => {
   const provider = new MockProvider({
@@ -89,12 +91,14 @@ describe('PreStakingContract', () => {
   const [wallet, rewardsWallet, account1, account2, account3, unauthorized] = provider.getWallets()
   const loadFixture = createFixtureLoader([wallet, rewardsWallet], provider)
 
+  let vaiLockup: Contract
   let token: Contract
   let preStakingContract: Contract
   beforeEach(async () => {
     const fixture = await loadFixture(preStakingFixture)
     token = fixture.token
     preStakingContract = fixture.preStakingContract
+    vaiLockup = fixture.lockupContract
   })
 
   describe('1. Before deployment', () => {
@@ -403,111 +407,33 @@ describe('PreStakingContract', () => {
 
         await expect(preStakingContract.connect(account3).deposit(preStakingConfig.amounts[0].add(BigNumber.from(1)))).to.be.revertedWith(revertMessage)
       })
-
-      it('4.9. initiateWithdrawal: should revert when contract is paused', async () => {
-        await preStakingContract.pause()
-        await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.be.revertedWith("Pausable: paused")
-        await preStakingContract.unpause()
-      })
-
-      it('4.10. initiateWithdrawal: should revert if minimum staking period did not pass', async () => {
-        const preStakingContract1 = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
-        await preStakingContract1.setupStakingLimit(
-          preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
-        )
-        await preStakingContract1.setupRewards(
-          rewardsConfig.multiplier,
-          anualRewardRates,
-          lowerBounds,
-          upperBounds
-        )
-        await preStakingContract1.unpause()
-        await token.connect(account1).approve(preStakingContract1.address, depositAmount)
-        await token.connect(wallet).transfer(account1.address, depositAmount)
-
-        await expect(preStakingContract1.connect(account1).deposit(depositAmount)).to.emit(preStakingContract1, 'StakeDeposited').withArgs(account1.address, depositAmount)
-        const launchTimestamp = await preStakingContract1.launchTimestamp()
-        const revertMessage = "Not enough days passed"
-
-        // 0 Days passed
-        await expect(preStakingContract1.connect(account1).initiateWithdrawal()).to.be.revertedWith(revertMessage)
-
-        // 30 Days passed
-        await mineBlock(provider, launchTimestamp.add(30 * numberOfSecondsInOneDay).sub(1).toNumber())
-        await expect(preStakingContract1.connect(account1).initiateWithdrawal()).to.be.revertedWith(revertMessage)
-
-        // 60 Days passed
-        await mineBlock(provider, launchTimestamp.add(60 * numberOfSecondsInOneDay).sub(1).toNumber())
-        await expect(preStakingContract1.connect(account1).initiateWithdrawal()).to.be.revertedWith(revertMessage)
-
-        // 64 Days passed
-        await mineBlock(provider, launchTimestamp.add(64 * numberOfSecondsInOneDay).sub(1).toNumber())
-        await expect(preStakingContract1.connect(account1).initiateWithdrawal()).to.emit(preStakingContract1, 'WithdrawInitiated')
-      })
-
-      it('4.11. initiateWithdrawal: should revert if the account has no stake deposit', async () => {
-        // 63 Days passed
-        const timestamp = (await provider.getBlock("latest")).timestamp
-        await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
-        const revertMessage = "There is no stake deposit for this account"
-        await expect(preStakingContract.connect(unauthorized).initiateWithdrawal()).to.be.revertedWith(revertMessage)
-      })
-
-      it('4.12. initiateWithdrawal: should emit the WithdrawInitiated(msg.sender, stakeDeposit.amount) event', async () => {
-        await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
-        // 63 Days passed
-        const timestamp = (await provider.getBlock("latest")).timestamp
-        await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
-        await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.emit(preStakingContract, 'WithdrawInitiated').withArgs(account1.address, depositAmount)
-      })
-
-      it('4.13. initiateWithdrawal: should revert if account has already initiated the withdrawal', async () => {
-        await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
-        // 63 Days passed
-        const timestamp = (await provider.getBlock("latest")).timestamp
-        await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
-
-        await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.emit(preStakingContract, 'WithdrawInitiated').withArgs(account1.address, depositAmount)
-
-        const revertMessage = "You already initiated the withdrawal"
-        await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.be.revertedWith(revertMessage)
-      })
-
-      it('4.14. executeWithdrawal: should revert when contract is paused', async () => {
+      it('4.9. executeWithdrawal: should revert when contract is paused', async () => {
         const revertMessage = "Pausable: paused"
         await preStakingContract.pause()
         await expect(preStakingContract.connect(account1).executeWithdrawal()).to.be.revertedWith(revertMessage)
         await preStakingContract.unpause()
       })
 
-      it('4.15. executeWithdrawal: should revert if there is no deposit on the account', async () => {
+      it('4.10. executeWithdrawal: should revert if there is no deposit on the account', async () => {
+        // 63 Days passed
+        const timestamp = (await provider.getBlock("latest")).timestamp
+        await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
+
         const revertMessage = "There is no stake deposit for this account"
         await expect(preStakingContract.executeWithdrawal()).to.be.revertedWith(revertMessage)
       })
 
-      it('4.16. executeWithdrawal: should revert if the withdraw was not initialized', async () => {
-        await token.connect(account2).approve(preStakingContract.address, depositAmount)
-        await token.connect(wallet).transfer(account2.address, depositAmount)
-        await expect(preStakingContract.connect(account2).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account2.address, depositAmount)
-        const revertMessage = "Withdraw is not initialized"
-        await expect(preStakingContract.connect(account2).executeWithdrawal()).to.be.revertedWith(revertMessage)
-      })
-
-      it('4.17. executeWithdrawal: should revert if unstaking period did not pass', async () => {
+      it('4.11. executeWithdrawal: should revert if unstaking period did not pass', async () => {
         await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
-        const timestamp = (await provider.getBlock("latest")).timestamp
-        await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
-        await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.emit(preStakingContract, 'WithdrawInitiated').withArgs(account1.address, depositAmount)
 
-        const revertMessage = 'The unstaking period did not pass'
+        const revertMessage = 'Not enough days passed'
         await expect(preStakingContract.connect(account1).executeWithdrawal()).to.be.revertedWith(revertMessage)
       })
 
-      it('4.18. executeWithdrawal: should revert if transfer fails on reward', async () => {
+      it('4.12. executeWithdrawal: should revert if transfer fails on reward', async () => {
         await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
         const timestamp = (await provider.getBlock("latest")).timestamp
         await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
-        await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.emit(preStakingContract, 'WithdrawInitiated').withArgs(account1.address, depositAmount)
 
         const revertMessage = "ERC20: transfer amount exceeds allowance"
 
@@ -521,7 +447,7 @@ describe('PreStakingContract', () => {
         await expect(preStakingContract.connect(account1).executeWithdrawal()).to.be.revertedWith(revertMessage)
       })
 
-      it('4.19. earned(): should return current reward for a specified account', async () => {
+      it('4.13. earned(): should return current reward for a specified account', async () => {
         await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
 
         const timestamp = (await provider.getBlock("latest")).timestamp
@@ -531,20 +457,17 @@ describe('PreStakingContract', () => {
         await expect(currentReward).to.be.above(BigNumber.from(0))
       })
 
-      it('4.20. getStakeDeposit(): should return the current the stake deposit for the msg.sender', async () => {
+      it('4.14. getStakeDeposit(): should return the current the stake deposit for the msg.sender', async () => {
         await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
 
         const stakeDeposit = await preStakingContract.connect(account1).getStakeDeposit()
         await expect(stakeDeposit[0]).to.be.equal(depositAmount)
       })
 
-      it('4.21. executeWithdrawal: should transfer the initial staking deposit and the correct reward and emit WithdrawExecuted', async () => {
+      it('4.15. executeWithdrawal: should transfer the initial staking deposit and the correct reward and emit WithdrawExecuted', async () => {
         await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
         const timestamp = (await provider.getBlock("latest")).timestamp
         await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
-        await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.emit(preStakingContract, 'WithdrawInitiated').withArgs(account1.address, depositAmount)
-        const timestamp1 = (await provider.getBlock("latest")).timestamp
-        await mineBlock(provider, timestamp1 + 7 * numberOfSecondsInOneDay)
 
         await token.connect(rewardsWallet).increaseAllowance(
           preStakingContract.address,
@@ -599,10 +522,6 @@ describe('PreStakingContract', () => {
 
       const timestamp1 = (await provider.getBlock("latest")).timestamp
       await mineBlock(provider, timestamp1 + 32 * numberOfSecondsInOneDay)
-      await preStakingContract.connect(account1).initiateWithdrawal()
-
-      const timestamp2 = (await provider.getBlock("latest")).timestamp
-      await mineBlock(provider, timestamp2 + 8 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account1).executeWithdrawal()
 
       let reward1 = BigNumber.from(0)
@@ -626,9 +545,6 @@ describe('PreStakingContract', () => {
       await preStakingContract.connect(account2).deposit(depositAmount)
       const timestamp3 = (await provider.getBlock("latest")).timestamp
       await mineBlock(provider, timestamp3 + 64 * numberOfSecondsInOneDay)
-      await preStakingContract.connect(account2).initiateWithdrawal()
-      const timestamp4 = (await provider.getBlock("latest")).timestamp
-      await mineBlock(provider, timestamp4 + 8 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account2).executeWithdrawal()
 
       let transferEvent2 = new Promise((resolve, reject) => {
@@ -763,21 +679,125 @@ describe('PreStakingContract', () => {
 
       const timestamp = (await provider.getBlock("latest")).timestamp
       await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
-      await preStakingContract.connect(account1).initiateWithdrawal()
-
-      const timestamp2 = (await provider.getBlock("latest")).timestamp
-      await mineBlock(provider, timestamp2 + 7 * numberOfSecondsInOneDay)
       await preStakingContract.connect(account1).executeWithdrawal()
     })
 
-    it('8.1. should revert when calling again initiateWithdrawal', async () => {
-      const message = "There is no stake deposit for this account"
-      await expect(preStakingContract.connect(account1).initiateWithdrawal()).to.be.revertedWith(message)
-    })
-
-    it('8.2. should revert when calling again executeWithdrawal', async () => {
+    it('8.1. should revert when calling again executeWithdrawal', async () => {
       const message = "There is no stake deposit for this account"
       await expect(preStakingContract.connect(account1).executeWithdrawal()).to.be.revertedWith(message)
+    })
+  })
+
+  describe('9. Deposit lockup', () => {
+    beforeEach(async () => {
+      await preStakingContract.setLockupAddress(vaiLockup.address);
+      await preStakingContract.setupStakingLimit(
+        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+      )
+      await preStakingContract.setupRewards(
+        rewardsConfig.multiplier,
+        anualRewardRates,
+        lowerBounds,
+        upperBounds
+      )
+      await preStakingContract.unpause()
+      await vaiLockup.setStakingAddress(preStakingContract.address)
+
+      await token.connect(wallet).transfer(account3.address, amount)
+      await token.connect(account3).approve(vaiLockup.address, amount)
+      await vaiLockup.connect(account3).lock(account1.address, amount)
+    })
+
+    it('9.1. should revert when amoaunt equal 0', async () => {
+      const message = "The stake deposit has to be larger than 0"
+      await expect(preStakingContract.connect(account1).depositLockup(0)).to.be.revertedWith(message)
+    })
+
+    it('9.2. should revert when this address already have a stake', async () => {
+      await preStakingContract.connect(account1).depositLockup(4)
+      const message = "You already have a stake"
+      await expect(preStakingContract.connect(account1).depositLockup(4)).to.be.revertedWith(message)
+    })
+
+    it('9.3. should revert when amount is too large', async () => {
+      const message = "You don't have enough funds"
+      await expect(preStakingContract.connect(account1).depositLockup(amount.add(100))).to.be.revertedWith(message)
+    })
+
+    it('9.4. should emit LookupStakeDeposited', async () => {
+      await expect(preStakingContract.connect(account1).depositLockup(amount)).to.be.emit(preStakingContract, 'LookupStakeDeposited').withArgs(account1.address, amount)
+
+      let isLockup = await preStakingContract.isLockup(account1.address)
+      await expect(isLockup).to.equal(true)
+    })
+
+    it('9.5. beneficiary current amount shoud decrease after deposit lockup', async () => {
+      let currentAmount = await vaiLockup.beneficiaryCurrentAmount(account1.address)
+      await expect(preStakingContract.connect(account1).depositLockup(amount)).to.be.emit(preStakingContract, 'LookupStakeDeposited').withArgs(account1.address, amount)
+      let currentAmountAfterWithdraw = await vaiLockup.beneficiaryCurrentAmount(account1.address)
+
+      expect(currentAmountAfterWithdraw).equal(currentAmount - 256)
+    })
+  })
+
+  describe('10. Withdraw lockup', () => {
+    beforeEach(async () => {
+      await preStakingContract.setLockupAddress(vaiLockup.address);
+      await preStakingContract.setupStakingLimit(
+        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+      )
+      await preStakingContract.setupRewards(
+        rewardsConfig.multiplier,
+        anualRewardRates,
+        lowerBounds,
+        upperBounds
+      )
+      await preStakingContract.unpause()
+      await vaiLockup.setStakingAddress(preStakingContract.address)
+
+      await token.connect(wallet).transfer(account3.address, amount)
+      await token.connect(account3).approve(vaiLockup.address, amount)
+      await vaiLockup.connect(account3).lock(account1.address, amount)
+
+      await preStakingContract.connect(account1).depositLockup(amount)
+
+      const timestamp = (await provider.getBlock("latest")).timestamp
+      await mineBlock(provider, timestamp + 63 * numberOfSecondsInOneDay)
+
+      await token.connect(wallet).transfer(rewardsWallet.address, rewardsAmount)
+      await token.connect(rewardsWallet).approve(preStakingContract.address, rewardsAmount)
+    })
+
+    it('10.1. should revert if there is no deposit on the account', async () => {
+      const message = "There is no stake deposit for this account"
+      await expect(preStakingContract.connect(account3).withdrawLockup()).to.be.revertedWith(message)
+    })
+
+    it('10.2. should revert if deposit is not lockup', async () => {
+      const message = "This deposit is not lockup"
+
+      await token.connect(wallet).transfer(account3.address, depositAmount)
+      await token.connect(account3).approve(preStakingContract.address, depositAmount)
+
+      await preStakingContract.connect(account3).deposit(amount)
+      await expect(preStakingContract.connect(account3).withdrawLockup()).to.be.revertedWith(message)
+    })
+
+    it('10.3. should emit LookupWithdrawExecuted', async () => {
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LookupWithdrawExecuted').withArgs(account1.address, amount, 8)
+    })
+
+    it('10.4. should revert after withdraw lockup', async () => {
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LookupWithdrawExecuted').withArgs(account1.address, amount, 8)
+      const message = "There is no stake deposit for this account"
+      await expect(preStakingContract.connect(account3).withdrawLockup()).to.be.revertedWith(message)
+    })
+
+    it('10.5. beneficiary current amount shoud increase after withdraw lockup', async () => {
+      let currentAmount = await vaiLockup.beneficiaryCurrentAmount(account1.address)
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LookupWithdrawExecuted').withArgs(account1.address, amount, 8)
+      let currentAmountAfterWithdraw = await vaiLockup.beneficiaryCurrentAmount(account1.address)
+      expect(currentAmountAfterWithdraw).equal(currentAmount + amount)
     })
   })
 })
