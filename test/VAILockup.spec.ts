@@ -77,7 +77,6 @@ describe('VAILockup', () => {
   const [wallet, account1, rewardsWallet, account3, unauthorized] = provider.getWallets()
   const loadFixture = createFixtureLoader([wallet, rewardsWallet], provider)
 
-
   let vaiLockup: Contract
   let preStakingContract: Contract
   let token: Contract
@@ -178,7 +177,7 @@ describe('VAILockup', () => {
       await expect(vaiLockup.connect(account3).unlock(account1.address)).to.be.revertedWith(revertMessage)
     })
 
-    it('5.2. should revert when current amount is too small to unlock', async () => {
+    it('5.2. beneficiary current amount should equals 64 after 120 days', async () => {
       const preStakingContract1 = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
 
       const vaiLockup1 = await deployContract(wallet, VAILockup, [token.address, interval, numberOfParts])
@@ -214,14 +213,9 @@ describe('VAILockup', () => {
       await mineBlock(provider, launchTimestamp.add(90 * numberOfSecondsInOneDay).toNumber())
       await vaiLockup1.connect(account3).unlock(account1.address)
 
-      await preStakingContract1.connect(account1).depositLockup(8)
-
-      let currentAmountAfterUnlock1 = await vaiLockup1.beneficiaryCurrentAmount(account1.address)
-      console.log(currentAmountAfterUnlock1)
-
       await mineBlock(provider, launchTimestamp.add(120 * numberOfSecondsInOneDay).toNumber())
-      const revertMessage = "Current amount is too small to unlock";
-      await expect(vaiLockup1.connect(account3).unlock(account1.address)).to.be.revertedWith(revertMessage)
+      let currentAmountAfterUnlock1 = await vaiLockup1.beneficiaryCurrentAmount(account1.address)
+      expect(currentAmountAfterUnlock1).to.equal(64)
     })
 
     it('5.3. should revert when not enough days passed', async () => {
@@ -244,22 +238,41 @@ describe('VAILockup', () => {
 
   describe('6. Stake and unstake', () => {
     beforeEach(async () => {
-      await vaiLockup.setStakingAddress(preStakingContract.address)
-
       await token.connect(wallet).transfer(account3.address, amount)
       await token.connect(account3).approve(vaiLockup.address, amount)
 
       await vaiLockup.connect(account3).lock(account1.address, amount)
     })
 
+    it('6.1. Stake: should revert when staking address  is not set', async () => {
+      const revertMessage = "The staking address is not set";
+      await expect(vaiLockup.connect(account3).stake(account1.address, amount)).to.be.revertedWith(revertMessage)
+    })
+
     it('6.1. Stake: should revert when not call by staking address', async () => {
+      await vaiLockup.setStakingAddress(preStakingContract.address)
+
       const revertMessage = "This address is not staking address";
       await expect(vaiLockup.connect(account3).stake(account1.address, amount)).to.be.revertedWith(revertMessage)
     })
 
     it('6.2. Unstake: should revert when not call by staking address', async () => {
+      await vaiLockup.setStakingAddress(preStakingContract.address)
+      
       const revertMessage = "This address is not staking address";
       await expect(vaiLockup.connect(account3).unstake(account1.address, amount, 0)).to.be.revertedWith(revertMessage)
+    })
+  })
+
+  describe('7. Deployment', () => {
+    it('7.1. PreStakingContract deployment gas', async () => {
+      const receipt = await provider.getTransactionReceipt(preStakingContract.deployTransaction.hash)
+      expect(receipt.gasUsed).to.eq('5025739')
+    })
+
+    it('7.2. VAILockup deployment gas', async () => {
+      const receipt = await provider.getTransactionReceipt(vaiLockup.deployTransaction.hash)
+      expect(receipt.gasUsed).to.eq('940205')
     })
   })
 })

@@ -51,6 +51,11 @@ contract VAILockup is IVAILockup {
         _;
     }
 
+    modifier onlyAfterSettingStakingAddress() {
+        require(_stakingAddress != address(0), "[Validation] The staking address is not set");
+        _;
+    }
+
     /**
      * @return the token being held.
      */
@@ -96,6 +101,7 @@ contract VAILockup is IVAILockup {
 
     function stake(address beneficiary, uint256 stakeAmount)
     public
+    onlyAfterSettingStakingAddress
     onlyStaking
     {
         Lockup storage lockup = _lockups[_beneficiaryToLockup[beneficiary]];
@@ -105,6 +111,7 @@ contract VAILockup is IVAILockup {
 
     function unstake(address beneficiary, uint256 stakeAmount, uint256 rewardsAmount)
     public
+    onlyAfterSettingStakingAddress
     onlyStaking
     {
         Lockup storage lockup = _lockups[_beneficiaryToLockup[beneficiary]];

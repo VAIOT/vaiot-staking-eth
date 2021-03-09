@@ -120,6 +120,11 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         _;
     }
 
+    modifier onlyAfterSettingIVAILockup() {
+        require(address(ivaiLockup) != address(0), "[Validation] The IVAILockup is not set");
+        _;
+    }
+
     // PUBLIC FUNCTIONS
     constructor(address _token, address _rewardsAddress)
     onlyContract(_token) Ownable()
@@ -163,6 +168,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     public
     nonReentrant
     onlyAfterSetup
+    onlyAfterSettingIVAILockup
     whenNotPaused
     {
         require(amount > 0, "[Validation] The stake deposit has to be larger than 0");
@@ -225,6 +231,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     nonReentrant
     whenNotPaused
     onlyAfterSetup
+    onlyAfterSettingIVAILockup
     guardForPrematureWithdrawal
     {
         StakeDeposit storage stakeDeposit = _stakeDeposits[msg.sender];
