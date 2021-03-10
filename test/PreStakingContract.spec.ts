@@ -13,18 +13,18 @@ chai.use(solidity)
 
 const preStakingConfig = {
   amounts: [
-    BigNumber.from("1736460000000000000000000"),
-    BigNumber.from("2131987000000000000000000"),
-    BigNumber.from("2532907550000000000000000"),
+    BigNumber.from("5300000000000000000000000"),
+    BigNumber.from("5400000000000000000000000"),
+    BigNumber.from("5500000000000000000000000"),
 
-    BigNumber.from("5256551640000000000000000"),
-    BigNumber.from("7549579410000000000000000"),
-    BigNumber.from("9850013190000000000000000"),
+    BigNumber.from("6800000000000000000000000"),
+    BigNumber.from("6900000000000000000000000"),
+    BigNumber.from("7000000000000000000000000"),
 
-    BigNumber.from("12843000460000000000000000"),
-    BigNumber.from("14796451620000000000000000"),
-    BigNumber.from("16967343040000000000000000"),
-    BigNumber.from("20500000000000000000000000")
+    BigNumber.from("7100000000000000000000000"),
+    BigNumber.from("7700000000000000000000000"),
+    BigNumber.from("8500000000000000000000000"),
+    BigNumber.from("10000000000000000000000000")
   ],
   daysInterval: BigNumber.from(30),
 }
@@ -37,31 +37,31 @@ const Status = {
 
 const depositAmount = BigNumber.from("1000000")
 const rewardsAmount = expandTo18Decimals(4676921)
-const bigDepositAmount = BigNumber.from("2000000000000000000000000")
+const bigDepositAmount = BigNumber.from("6000000000000000000000000")
 
 const rewardsConfig = {
   multiplier: BigNumber.from(2),
   rewardRates: [
     {
-      anualRewardRate: BigNumber.from(17),
-      lowerBound: BigNumber.from("0"),
-      upperBound: expandTo18Decimals(5125000)
+      anualRewardRate: BigNumber.from(35),
+      lowerBound: BigNumber.from(0),
+      upperBound: expandTo18Decimals(2500000)
     },
     {
-      anualRewardRate: BigNumber.from(19),
-      lowerBound: expandTo18Decimals(5125000),
-      upperBound: expandTo18Decimals(10250000)
+      anualRewardRate: BigNumber.from(37),
+      lowerBound: expandTo18Decimals(2500000),
+      upperBound: expandTo18Decimals(5000000)
     },
     {
-      anualRewardRate: BigNumber.from(21),
-      lowerBound: expandTo18Decimals(10250000),
-      upperBound: expandTo18Decimals(15375000)
+      anualRewardRate: BigNumber.from(39),
+      lowerBound: expandTo18Decimals(5000000),
+      upperBound: expandTo18Decimals(7500000)
     },
     {
-      anualRewardRate: BigNumber.from(23),
-      lowerBound: expandTo18Decimals(15375000),
-      upperBound: expandTo18Decimals(20500000)
-    },
+      anualRewardRate: BigNumber.from(41),
+      lowerBound: expandTo18Decimals(7500000),
+      upperBound: expandTo18Decimals(10000000)
+    }
   ]
 }
 
@@ -257,7 +257,7 @@ describe('PreStakingContract', () => {
       actualRewardsConfig = actualRewardsConfig.map(transformRewardToString)
       let expectedRewardsConfig = rewardsConfig.rewardRates.map(transformRewardToString)
 
-      const zeroRewardLowerBound = BigNumber.from("20500000000000000000000000")
+      const zeroRewardLowerBound = BigNumber.from("10000000000000000000000000")
       // Adding the 0 annual reward rate
       expectedRewardsConfig.push(
         {
@@ -581,7 +581,7 @@ describe('PreStakingContract', () => {
       await expect(preStakingContract.connect(account1).deposit(bigDepositAmount)).to.be.revertedWith("Your deposit would exceed the current staking limit")
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      expect(currentStakingLimit).to.be.equal(BigNumber.from("1736460000000000000000000"))
+      expect(currentStakingLimit).to.be.equal(BigNumber.from("5300000000000000000000000"))
     })
 
     it('6.2. should advance the staking limit to the second wave', async () => {
@@ -589,7 +589,7 @@ describe('PreStakingContract', () => {
       await mineBlock(provider, timestamp + 30 * numberOfSecondsInOneDay)
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      expect(currentStakingLimit).to.be.equal(BigNumber.from("2131987000000000000000000"))
+      expect(currentStakingLimit).to.be.equal(BigNumber.from("5400000000000000000000000"))
     })
 
     it('6.3. should advance the stakingLimit to the third wave', async () => {
@@ -597,7 +597,7 @@ describe('PreStakingContract', () => {
       await mineBlock(provider, timestamp + 60 * numberOfSecondsInOneDay)
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      expect(currentStakingLimit).to.be.equal(BigNumber.from("2532907550000000000000000"))
+      expect(currentStakingLimit).to.be.equal(BigNumber.from("5500000000000000000000000"))
     })
 
     it('6.4. should advance the staking limit to the maximum amount and not more', async () => {
@@ -605,7 +605,7 @@ describe('PreStakingContract', () => {
       await mineBlock(provider, timestamp + 270 * numberOfSecondsInOneDay)
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      expect(currentStakingLimit).to.be.equal(BigNumber.from("20500000000000000000000000"))
+      expect(currentStakingLimit).to.be.equal(BigNumber.from("10000000000000000000000000"))
     })
   })
 
@@ -634,7 +634,7 @@ describe('PreStakingContract', () => {
       await mineBlock(provider, launchTimestamp.add(10.5 * numberOfSecondsInOneDay).sub(1).toNumber())
       const stake1 = await preStakingContract1.earned(account1.address)
 
-      const expectedReward = '4750'
+      const expectedReward = '9780'
       const actualReward = stake1.div(BigNumber.from(1))
       expect(actualReward).to.equal(expectedReward)
     })
@@ -769,18 +769,18 @@ describe('PreStakingContract', () => {
     })
 
     it('10.3. should emit LockupWithdrawExecuted', async () => {
-      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 8)
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 17)
     })
 
     it('10.4. should revert after withdraw lockup', async () => {
-      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 8)
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 17)
       const message = "There is no stake deposit for this account"
       await expect(preStakingContract.connect(account3).withdrawLockup()).to.be.revertedWith(message)
     })
 
     it('10.5. beneficiary current amount shoud increase after withdraw lockup', async () => {
       let currentAmount = await vaiLockup.beneficiaryCurrentAmount(account1.address)
-      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 8)
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 17)
       let currentAmountAfterWithdraw = await vaiLockup.beneficiaryCurrentAmount(account1.address)
       expect(currentAmountAfterWithdraw).equal(currentAmount + amount)
     })

@@ -12,7 +12,7 @@ import PreStakingContract from '../build/PreStakingContract.json'
 
 chai.use(solidity)
 
-const amount = BigNumber.from(256);
+const amount = BigNumber.from(256)
 
 const preStakingConfig = {
   amounts: [
@@ -73,7 +73,7 @@ describe('VAILockup', () => {
       gasLimit: 9999999,
     },
   })
-  const [wallet, account1, rewardsWallet, account3, unauthorized] = provider.getWallets()
+  const [wallet, account1, rewardsWallet, account2, account3, account4, account5] = provider.getWallets()
   const loadFixture = createFixtureLoader([wallet, rewardsWallet], provider)
 
   let vaiLockup: Contract
@@ -166,13 +166,13 @@ describe('VAILockup', () => {
       await vaiLockup.setStakingAddress(preStakingContract.address)
       await token.connect(wallet).transfer(account3.address, amount)
       await token.connect(account3).approve(vaiLockup.address, amount)
-      await vaiLockup.connect(account3).lock(account1.address, amount)
+      await vaiLockup.connect(account3).lock(account1.address, amount.div(4))
     })
 
     it('5.1. should revert when lockup amount is staked', async () => {
       await preStakingContract.connect(account1).depositLockup(amount)
 
-      const revertMessage = "Lockup amount is staked";
+      const revertMessage = "Lockup amount is staked"
       await expect(vaiLockup.connect(account3).unlock(account1.address)).to.be.revertedWith(revertMessage)
     })
 
@@ -208,7 +208,7 @@ describe('VAILockup', () => {
       await vaiLockup1.connect(account3).unlock(account1.address)
 
       await mineBlock(provider, launchTimestamp.add(90 * numberOfSecondsInOneDay).toNumber())
-      await expect(vaiLockup1.connect(account3).unlock(account1.address)).to.emit(vaiLockup1, "TokensUnlocked").withArgs(account1.address, 64);
+      await expect(vaiLockup1.connect(account3).unlock(account1.address)).to.emit(vaiLockup1, "TokensUnlocked").withArgs(account1.address, 64)
 
       await mineBlock(provider, launchTimestamp.add(120 * numberOfSecondsInOneDay).toNumber())
       let currentAmountAfterUnlock1 = await vaiLockup1.beneficiaryCurrentAmount(account1.address)
@@ -218,7 +218,7 @@ describe('VAILockup', () => {
     })
 
     it('5.3. should revert when not enough days passed', async () => {
-      const revertMessage = "Not enough days passed";
+      const revertMessage = "Not enough days passed"
       await expect(vaiLockup.connect(account3).unlock(account1.address)).to.be.revertedWith(revertMessage)
     })
 
@@ -233,7 +233,48 @@ describe('VAILockup', () => {
       let currentAmountAfterUnlock = await vaiLockup.beneficiaryCurrentAmount(account1.address)
       expect(currentAmountAfterUnlock).equal(currentAmount - (currentAmount / numberOfParts))
     })
-  });
+
+    it('5.5. should revert when lockup already unlocked', async () => {
+      await expect(vaiLockup.connect(account3).lock(account2.address, amount.div(4))).to.emit(vaiLockup, "TokensLocked").withArgs(account2.address, amount.div(4))
+      await expect(vaiLockup.connect(account3).lock(account4.address, amount.div(4))).to.emit(vaiLockup, "TokensLocked").withArgs(account4.address, amount.div(4))
+      await expect(vaiLockup.connect(account3).lock(account5.address, amount.div(4))).to.emit(vaiLockup, "TokensLocked").withArgs(account5.address, amount.div(4))
+
+      const timestamp = (await provider.getBlock("latest")).timestamp
+      await mineBlock(provider, timestamp + 29 * numberOfSecondsInOneDay)
+      await expect(vaiLockup.connect(account3).unlock(account2.address)).to.be.revertedWith("Not enough days passed")
+      await expect(vaiLockup.connect(account3).unlock(account4.address)).to.be.revertedWith("Not enough days passed")
+      await expect(vaiLockup.connect(account3).unlock(account5.address)).to.be.revertedWith("Not enough days passed")
+
+      await mineBlock(provider, timestamp + 30 * numberOfSecondsInOneDay)
+      await expect(vaiLockup.connect(account3).unlock(account2.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account2.address, amount.div(4).div(numberOfParts))
+      await expect(vaiLockup.connect(account3).unlock(account4.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account4.address, amount.div(4).div(numberOfParts))
+      await expect(vaiLockup.connect(account3).unlock(account5.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account5.address, amount.div(4).div(numberOfParts))
+
+      await mineBlock(provider, timestamp + 59 * numberOfSecondsInOneDay)
+      await expect(vaiLockup.connect(account3).unlock(account2.address)).to.be.revertedWith("Not enough days passed")
+      await expect(vaiLockup.connect(account3).unlock(account4.address)).to.be.revertedWith("Not enough days passed")
+      await expect(vaiLockup.connect(account3).unlock(account5.address)).to.be.revertedWith("Not enough days passed")
+
+      await mineBlock(provider, timestamp + 60 * numberOfSecondsInOneDay)
+      await expect(vaiLockup.connect(account3).unlock(account2.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account2.address, amount.div(4).div(numberOfParts))
+      await expect(vaiLockup.connect(account3).unlock(account4.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account4.address, amount.div(4).div(numberOfParts))
+      await expect(vaiLockup.connect(account3).unlock(account5.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account5.address, amount.div(4).div(numberOfParts))
+
+      await mineBlock(provider, timestamp + 90 * numberOfSecondsInOneDay)
+      await expect(vaiLockup.connect(account3).unlock(account2.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account2.address, amount.div(4).div(numberOfParts))
+      await expect(vaiLockup.connect(account3).unlock(account4.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account4.address, amount.div(4).div(numberOfParts))
+      await expect(vaiLockup.connect(account3).unlock(account5.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account5.address, amount.div(4).div(numberOfParts))
+
+      await mineBlock(provider, timestamp + 120 * numberOfSecondsInOneDay)
+      await expect(vaiLockup.connect(account3).unlock(account2.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account2.address, amount.div(4).div(numberOfParts))
+      await expect(vaiLockup.connect(account3).unlock(account4.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account4.address, amount.div(4).div(numberOfParts))
+      await expect(vaiLockup.connect(account3).unlock(account5.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account5.address, amount.div(4).div(numberOfParts))
+
+      await expect(vaiLockup.connect(account3).unlock(account2.address)).to.be.revertedWith("Lockup already unlocked")
+      await expect(vaiLockup.connect(account3).unlock(account4.address)).to.be.revertedWith("Lockup already unlocked")
+      await expect(vaiLockup.connect(account3).unlock(account5.address)).to.be.revertedWith("Lockup already unlocked")
+    })
+  })
 
   describe('6. Stake and unstake', () => {
     beforeEach(async () => {
@@ -244,21 +285,21 @@ describe('VAILockup', () => {
     })
 
     it('6.1. Stake: should revert when staking address  is not set', async () => {
-      const revertMessage = "The staking address is not set";
+      const revertMessage = "The staking address is not set"
       await expect(vaiLockup.connect(account3).stake(account1.address, amount)).to.be.revertedWith(revertMessage)
     })
 
     it('6.2. Stake: should revert when not call by staking address', async () => {
       await vaiLockup.setStakingAddress(preStakingContract.address)
 
-      const revertMessage = "This address is not staking address";
+      const revertMessage = "This address is not staking address"
       await expect(vaiLockup.connect(account3).stake(account1.address, amount)).to.be.revertedWith(revertMessage)
     })
 
     it('6.3. Unstake: should revert when not call by staking address', async () => {
       await vaiLockup.setStakingAddress(preStakingContract.address)
-      
-      const revertMessage = "This address is not staking address";
+
+      const revertMessage = "This address is not staking address"
       await expect(vaiLockup.connect(account3).unstake(account1.address, amount, 0)).to.be.revertedWith(revertMessage)
     })
 
@@ -292,7 +333,6 @@ describe('VAILockup', () => {
       const revertMessage = "Lockup already unlocked"
       await expect(vaiLockup.connect(account1).unlock(account1.address)).to.be.revertedWith(revertMessage)
     })
-
   })
 
   describe('7. Deployment', () => {
