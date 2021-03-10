@@ -8,7 +8,6 @@ import { preStakingFixture } from './fixtures'
 import { mineBlock, expandTo18Decimals } from './utils'
 
 import PreStakingContract from '../build/PreStakingContract.json'
-import VAILockup from '../build/VAILockup.json'
 
 chai.use(solidity)
 
@@ -28,7 +27,6 @@ const preStakingConfig = {
     BigNumber.from("20500000000000000000000000")
   ],
   daysInterval: BigNumber.from(30),
-  unstakingPeriod: BigNumber.from(7)
 }
 
 const Status = {
@@ -140,17 +138,15 @@ describe('PreStakingContract', () => {
 
   describe('3. Setup', () => {
     it('3.1. setupStakingLimit: should throw if called with wrong argument types', async () => {
-      await expect(preStakingContract.setupStakingLimit([null], preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod)).to.be.reverted
-      await expect(preStakingContract.setupStakingLimit(preStakingConfig.amounts, null, preStakingConfig.unstakingPeriod)).to.be.reverted
-      await expect(preStakingContract.setupStakingLimit(preStakingConfig.amounts, preStakingConfig.daysInterval, null)).to.be.reverted
+      await expect(preStakingContract.setupStakingLimit([null], preStakingConfig.daysInterval)).to.be.reverted
+      await expect(preStakingContract.setupStakingLimit(preStakingConfig.amounts, null)).to.be.reverted
     })
 
     it('3.2. setupStakingLimit: should revert if not called by the contract owner', async () => {
       const revertMessage = 'caller is not the owner'
       await expect(preStakingContract.connect(account1).setupStakingLimit(
         preStakingConfig.amounts,
-        preStakingConfig.daysInterval,
-        preStakingConfig.unstakingPeriod
+        preStakingConfig.daysInterval
       )).to.be.revertedWith(revertMessage)
     })
 
@@ -159,8 +155,7 @@ describe('PreStakingContract', () => {
       const revertMessage = 'Pausable: not paused'
       await expect(preStakingContract.setupStakingLimit(
         preStakingConfig.amounts,
-        preStakingConfig.daysInterval,
-        preStakingConfig.unstakingPeriod
+        preStakingConfig.daysInterval
       )).to.be.revertedWith(revertMessage)
       await preStakingContract.pause()
     })
@@ -170,8 +165,7 @@ describe('PreStakingContract', () => {
 
       await expect(preStakingContract.setupStakingLimit(
         [BigNumber.from("100000000000000000"), BigNumber.from("1000000")],
-        preStakingConfig.daysInterval,
-        preStakingConfig.unstakingPeriod
+        preStakingConfig.daysInterval
       )).to.be.revertedWith(revertMessage)
     })
 
@@ -179,20 +173,18 @@ describe('PreStakingContract', () => {
       const revertMessage = 'some of amounts are 0'
       await expect(preStakingContract.setupStakingLimit(
         [BigNumber.from(0)],
-        preStakingConfig.daysInterval,
-        preStakingConfig.unstakingPeriod
+        preStakingConfig.daysInterval
       )).to.be.revertedWith(revertMessage)
     })
 
     it('3.6. setupStakingLimit: should setup the staking limit correctly', async () => {
-      await preStakingContract.setupStakingLimit(preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod)
+      await preStakingContract.setupStakingLimit(preStakingConfig.amounts, preStakingConfig.daysInterval)
 
       let actualStakingConfig = await preStakingContract.stakingLimitConfig()
       let limitAmounts = await preStakingContract.getLimitAmounts()
 
-      await expect(actualStakingConfig.daysInterval).to.equal(preStakingConfig.daysInterval)
-      await expect(actualStakingConfig.unstakingPeriod).to.equal(preStakingConfig.unstakingPeriod)
-      await expect(limitAmounts).to.deep.equal(preStakingConfig.amounts)
+      expect(actualStakingConfig).to.equal(preStakingConfig.daysInterval)
+      expect(limitAmounts).to.deep.equal(preStakingConfig.amounts)
     })
 
     it('3.7. setupRewards: should revert if not called by the contract owner', async () => {
@@ -238,7 +230,7 @@ describe('PreStakingContract', () => {
 
     it('3.10. setupRewards: should setup the rewards with correct param values and number', async () => {
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
 
       await preStakingContract.setupRewards(
@@ -275,9 +267,9 @@ describe('PreStakingContract', () => {
         }
       )
 
-      await expect(actualRewardsConfig).to.deep.equal(expectedRewardsConfig)
-      await expect(actualMultiplier.toString()).to.equal(rewardsConfig.multiplier.toString())
-      await expect(actualRewardsLength.toNumber()).to.equal(expectedRewardsConfig.length)
+      expect(actualRewardsConfig).to.deep.equal(expectedRewardsConfig)
+      expect(actualMultiplier.toString()).to.equal(rewardsConfig.multiplier.toString())
+      expect(actualRewardsLength.toNumber()).to.equal(expectedRewardsConfig.length)
     })
 
     it('3.11. setupRewards: should initialize the base rewards history with the first BaseReward which is also the smallest', async () => {
@@ -300,7 +292,7 @@ describe('PreStakingContract', () => {
       )
 
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
 
       //Status.Running = 1
@@ -316,7 +308,7 @@ describe('PreStakingContract', () => {
       )
 
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
 
       const revertMessage = 'Setup is already done'
@@ -347,7 +339,7 @@ describe('PreStakingContract', () => {
         await token.connect(account1).approve(preStakingContract.address, depositAmount)
 
         await preStakingContract.setupStakingLimit(
-          preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+          preStakingConfig.amounts, preStakingConfig.daysInterval
         )
         await preStakingContract.setupRewards(
           rewardsConfig.multiplier,
@@ -390,15 +382,15 @@ describe('PreStakingContract', () => {
         await token.connect(wallet).transfer(account2.address, depositAmount)
         await expect(preStakingContract.connect(account2).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account2.address, depositAmount)
         const currentBalance = await token.balanceOf(preStakingContract.address)
-        await expect(initialBalance.add(depositAmount)).to.be.equal(currentBalance)
+        expect(initialBalance.add(depositAmount)).to.be.equal(currentBalance)
       })
 
       it('4.7. deposit: should have current total stake less than current maximum staking limit', async () => {
         const totalStake = await preStakingContract.currentTotalStake()
         const currentMaxLimit = await preStakingContract.currentStakingLimit()
 
-        await expect(totalStake).to.be.below(currentMaxLimit)
-        await expect(currentMaxLimit).to.be.equal(preStakingConfig.amounts[0])
+        expect(totalStake).to.be.below(currentMaxLimit)
+        expect(currentMaxLimit).to.be.equal(preStakingConfig.amounts[0])
       })
 
       it('4.8. deposit: should revert if trying to deposit more than the first wave limit (5 * 10^8)', async () => {
@@ -421,13 +413,6 @@ describe('PreStakingContract', () => {
 
         const revertMessage = "There is no stake deposit for this account"
         await expect(preStakingContract.executeWithdrawal()).to.be.revertedWith(revertMessage)
-      })
-
-      it('4.11. executeWithdrawal: should revert if unstaking period did not pass', async () => {
-        await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
-
-        const revertMessage = 'Not enough days passed'
-        await expect(preStakingContract.connect(account1).executeWithdrawal()).to.be.revertedWith(revertMessage)
       })
 
       it('4.12. executeWithdrawal: should revert if transfer fails on reward', async () => {
@@ -454,14 +439,14 @@ describe('PreStakingContract', () => {
         await mineBlock(provider, timestamp + 1 * numberOfSecondsInOneDay)
 
         const currentReward = await preStakingContract.earned(account1.address)
-        await expect(currentReward).to.be.above(BigNumber.from(0))
+        expect(currentReward).to.be.above(BigNumber.from(0))
       })
 
       it('4.14. getStakeDeposit(): should return the current the stake deposit for the msg.sender', async () => {
         await expect(preStakingContract.connect(account1).deposit(depositAmount)).to.emit(preStakingContract, 'StakeDeposited').withArgs(account1.address, depositAmount)
 
         const stakeDeposit = await preStakingContract.connect(account1).getStakeDeposit()
-        await expect(stakeDeposit[0]).to.be.equal(depositAmount)
+        expect(stakeDeposit[0]).to.be.equal(depositAmount)
       })
 
       it('4.15. executeWithdrawal: should transfer the initial staking deposit and the correct reward and emit WithdrawExecuted', async () => {
@@ -477,7 +462,7 @@ describe('PreStakingContract', () => {
         await expect(preStakingContract.connect(account1).executeWithdrawal()).to.emit(preStakingContract, 'WithdrawExecuted')
         const currentTotalStake = await preStakingContract.currentTotalStake()
 
-        await expect(currentTotalStake).to.be.equal(initialTotalStake.sub(depositAmount))
+        expect(currentTotalStake).to.be.equal(initialTotalStake.sub(depositAmount))
       })
     })
   })
@@ -496,7 +481,7 @@ describe('PreStakingContract', () => {
       await token.connect(account3).approve(preStakingContract.address, depositAmount)
 
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract.setupRewards(
         rewardsConfig.multiplier,
@@ -560,7 +545,7 @@ describe('PreStakingContract', () => {
       })
       await transferEvent2
 
-      await expect(reward1).to.be.equal(reward2.div(BigNumber.from(2)))
+      expect(reward1).to.be.equal(reward2.div(BigNumber.from(2)))
     })
   })
 
@@ -578,7 +563,7 @@ describe('PreStakingContract', () => {
       await token.connect(account3).approve(preStakingContract.address, bigDepositAmount)
 
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract.setupRewards(
         rewardsConfig.multiplier,
@@ -596,7 +581,7 @@ describe('PreStakingContract', () => {
       await expect(preStakingContract.connect(account1).deposit(bigDepositAmount)).to.be.revertedWith("Your deposit would exceed the current staking limit")
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      await expect(currentStakingLimit).to.be.equal(BigNumber.from("1736460000000000000000000"))
+      expect(currentStakingLimit).to.be.equal(BigNumber.from("1736460000000000000000000"))
     })
 
     it('6.2. should advance the staking limit to the second wave', async () => {
@@ -604,7 +589,7 @@ describe('PreStakingContract', () => {
       await mineBlock(provider, timestamp + 30 * numberOfSecondsInOneDay)
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      await expect(currentStakingLimit).to.be.equal(BigNumber.from("2131987000000000000000000"))
+      expect(currentStakingLimit).to.be.equal(BigNumber.from("2131987000000000000000000"))
     })
 
     it('6.3. should advance the stakingLimit to the third wave', async () => {
@@ -612,7 +597,7 @@ describe('PreStakingContract', () => {
       await mineBlock(provider, timestamp + 60 * numberOfSecondsInOneDay)
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      await expect(currentStakingLimit).to.be.equal(BigNumber.from("2532907550000000000000000"))
+      expect(currentStakingLimit).to.be.equal(BigNumber.from("2532907550000000000000000"))
     })
 
     it('6.4. should advance the staking limit to the maximum amount and not more', async () => {
@@ -620,7 +605,7 @@ describe('PreStakingContract', () => {
       await mineBlock(provider, timestamp + 270 * numberOfSecondsInOneDay)
 
       const currentStakingLimit = await preStakingContract.currentStakingLimit()
-      await expect(currentStakingLimit).to.be.equal(BigNumber.from("20500000000000000000000000"))
+      expect(currentStakingLimit).to.be.equal(BigNumber.from("20500000000000000000000000"))
     })
   })
 
@@ -629,7 +614,7 @@ describe('PreStakingContract', () => {
     it('7.1. should return the current reward without throwing an error', async () => {
       const preStakingContract1 = await deployContract(wallet, PreStakingContract, [token.address, rewardsWallet.address])
       await preStakingContract1.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract1.setupRewards(
         rewardsConfig.multiplier,
@@ -665,7 +650,7 @@ describe('PreStakingContract', () => {
       await token.connect(account1).approve(preStakingContract.address, depositAmount)
 
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract.setupRewards(
         rewardsConfig.multiplier,
@@ -692,7 +677,7 @@ describe('PreStakingContract', () => {
     beforeEach(async () => {
       await preStakingContract.setLockupAddress(vaiLockup.address);
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract.setupRewards(
         rewardsConfig.multiplier,
@@ -724,16 +709,16 @@ describe('PreStakingContract', () => {
       await expect(preStakingContract.connect(account1).depositLockup(amount.add(100))).to.be.revertedWith(message)
     })
 
-    it('9.4. should emit LookupStakeDeposited', async () => {
-      await expect(preStakingContract.connect(account1).depositLockup(amount)).to.be.emit(preStakingContract, 'LookupStakeDeposited').withArgs(account1.address, amount)
+    it('9.4. should emit LockupStakeDeposited', async () => {
+      await expect(preStakingContract.connect(account1).depositLockup(amount)).to.be.emit(preStakingContract, 'LockupStakeDeposited').withArgs(account1.address, amount)
 
       let isLockup = await preStakingContract.isLockup(account1.address)
-      await expect(isLockup).to.equal(true)
+      expect(isLockup).to.equal(true)
     })
 
     it('9.5. beneficiary current amount shoud decrease after deposit lockup', async () => {
       let currentAmount = await vaiLockup.beneficiaryCurrentAmount(account1.address)
-      await expect(preStakingContract.connect(account1).depositLockup(amount)).to.be.emit(preStakingContract, 'LookupStakeDeposited').withArgs(account1.address, amount)
+      await expect(preStakingContract.connect(account1).depositLockup(amount)).to.be.emit(preStakingContract, 'LockupStakeDeposited').withArgs(account1.address, amount)
       let currentAmountAfterWithdraw = await vaiLockup.beneficiaryCurrentAmount(account1.address)
 
       expect(currentAmountAfterWithdraw).equal(currentAmount - 256)
@@ -744,7 +729,7 @@ describe('PreStakingContract', () => {
     beforeEach(async () => {
       await preStakingContract.setLockupAddress(vaiLockup.address);
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract.setupRewards(
         rewardsConfig.multiplier,
@@ -783,19 +768,19 @@ describe('PreStakingContract', () => {
       await expect(preStakingContract.connect(account3).withdrawLockup()).to.be.revertedWith(message)
     })
 
-    it('10.3. should emit LookupWithdrawExecuted', async () => {
-      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LookupWithdrawExecuted').withArgs(account1.address, amount, 8)
+    it('10.3. should emit LockupWithdrawExecuted', async () => {
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 8)
     })
 
     it('10.4. should revert after withdraw lockup', async () => {
-      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LookupWithdrawExecuted').withArgs(account1.address, amount, 8)
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 8)
       const message = "There is no stake deposit for this account"
       await expect(preStakingContract.connect(account3).withdrawLockup()).to.be.revertedWith(message)
     })
 
     it('10.5. beneficiary current amount shoud increase after withdraw lockup', async () => {
       let currentAmount = await vaiLockup.beneficiaryCurrentAmount(account1.address)
-      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LookupWithdrawExecuted').withArgs(account1.address, amount, 8)
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.be.emit(preStakingContract, 'LockupWithdrawExecuted').withArgs(account1.address, amount, 8)
       let currentAmountAfterWithdraw = await vaiLockup.beneficiaryCurrentAmount(account1.address)
       expect(currentAmountAfterWithdraw).equal(currentAmount + amount)
     })

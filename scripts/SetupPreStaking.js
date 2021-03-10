@@ -12,22 +12,23 @@ const preStakingCompiled = require('../build/PreStakingContract.json');
 
 	console.log(`Attempting to deploy from account: ${accounts[0]}`);
 
-	const tx = await new web3.eth.Contract(preStakingCompiled.abi, "0x590d4780eD198e17F1592F17Bb214322da7694aE")
+	const tx = await new web3.eth.Contract(preStakingCompiled.abi, "0xd1D61eb27568433314283A93aCF868FDFa3ceC95")
 		.methods.setupStakingLimit(
-			[expandDecimals("1736000"),
-			expandDecimals("2131000"),
-			expandDecimals("2532000"),
-			expandDecimals("5256000"),
-			expandDecimals("7549000"),
-			expandDecimals("9850000"),
-			expandDecimals("12843000"),
-			expandDecimals("14796000"),
-			expandDecimals("16967000"),
-			expandDecimals("20500000")], 30, 7)
+			[expandDecimals("5300000"),
+			expandDecimals("5400000"),
+			expandDecimals("5500000"),
+			expandDecimals("6800000"),
+			expandDecimals("6900000"),
+			expandDecimals("7000000"),
+			expandDecimals("7100000"),
+			expandDecimals("7700000"),
+			expandDecimals("8500000"),
+			expandDecimals("10000000")], 30)
 		.send({
 			from: accounts[0],
 			gas: '3000000',
-            gasPrice: '80000000000'
+            gasPrice: '80000000000',
+			chainId: 3
 		});
 
 	console.log(
@@ -42,20 +43,21 @@ const preStakingCompiled = require('../build/PreStakingContract.json');
 
 	console.log(`Attempting to deploy from account: ${accounts[0]}`);
 
-	const tx = await new web3.eth.Contract(preStakingCompiled.abi, "0x590d4780eD198e17F1592F17Bb214322da7694aE")
-		.methods.setupRewards(2, [17, 19, 21, 23],
+	const tx = await new web3.eth.Contract(preStakingCompiled.abi, "0xd1D61eb27568433314283A93aCF868FDFa3ceC95")
+		.methods.setupRewards(2, [35, 37, 39, 41],
 			["0",
-			expandDecimals("5125000"),
-			expandDecimals("10250000"),
-			expandDecimals("15375000")],
-			[expandDecimals("5125000"),
-			expandDecimals("10250000"),
-			expandDecimals("15375000"),
-			expandDecimals("20500000")])
+			expandDecimals("2500000"),
+			expandDecimals("5000000"),
+			expandDecimals("7500000")],
+			[expandDecimals("2500000"),
+			expandDecimals("5000000"),
+			expandDecimals("7500000"),
+			expandDecimals("10000000")])
 		.send({
 			from: accounts[0],
 			gas: '3000000',
-            gasPrice: '80000000000'
+            gasPrice: '80000000000',
+			chainId: 3
 		});
 
 	console.log(

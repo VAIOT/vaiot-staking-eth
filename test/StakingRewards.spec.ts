@@ -116,34 +116,6 @@ describe('StakingRewards', () => {
     expect(rewardAmount).to.be.eq(reward.div(REWARDS_DURATION).mul(REWARDS_DURATION))
   })
 
-  it('premature withdrawal', async () => {
-
-    const stakingRewardsLaterLaunch = await deployContract(wallet, StakingRewards, [
-      rewardsToken.address,
-      stakingToken.address,
-    ])
-    await rewardsToken.transfer(stakingRewardsLaterLaunch.address, reward)
-    // stake with staker
-    const stake = expandTo18Decimals(2)
-    await stakingToken.transfer(staker.address, stake)
-    await stakingToken.connect(staker).approve(stakingRewardsLaterLaunch.address, stake)
-    await expect(stakingRewardsLaterLaunch.connect(staker).stake(stake))
-      .to.emit(stakingRewardsLaterLaunch, 'Staked')
-      .withArgs(staker.address, stake)
-    await stakingRewardsLaterLaunch.notifyRewardAmount(reward)
-    const launchTimestamp = await stakingRewardsLaterLaunch.launchTimestamp()
-
-    // fast-forward just before withdrawal is allowed
-    await mineBlock(provider, launchTimestamp.add(734400).sub(1).toNumber())
-
-    await expect(stakingRewardsLaterLaunch.connect(staker).getReward()).to.be.revertedWith('Not enough days passed')
-
-    // fast-forward to be able to withdraw
-    await mineBlock(provider, launchTimestamp.add(734400).toNumber())
-
-    await expect(stakingRewardsLaterLaunch.connect(staker).getReward()).to.emit(stakingRewardsLaterLaunch, 'RewardPaid')
-  })
-
   it('half staking period', async () => {
     const { startTime, endTime } = await start(reward)
 

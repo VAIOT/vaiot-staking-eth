@@ -2,12 +2,10 @@ import chai, { expect } from 'chai'
 const _ = require('lodash')
 
 import { Contract, BigNumber } from 'ethers'
-import { solidity, MockProvider, createFixtureLoader, deployContract } from 'ethereum-waffle'
+import { solidity, MockProvider, createFixtureLoader } from 'ethereum-waffle'
 
 import { preStakingFixture } from './fixtures'
 import { mineBlock, expandTo18Decimals } from './utils'
-
-import PreStakingContract from '../build/PreStakingContract.json'
 
 chai.use(solidity)
 
@@ -26,14 +24,14 @@ const preStakingConfig = {
     BigNumber.from("8500000000000000000000000"),
     BigNumber.from("10000000000000000000000000")
   ],
-  daysInterval: BigNumber.from(30),
-  unstakingPeriod: BigNumber.from(7)
+  daysInterval: BigNumber.from(30)
 }
 
 const depositAmount = BigNumber.from("1000000")
 const rewardsAmount = BigNumber.from("4676921000000000000000000")
 const depositThreshold = BigNumber.from("125000000000")
-const bigDepositThreshold = expandTo18Decimals(8025000)
+const bigDepositThreshold = expandTo18Decimals(3000000)
+const depositDist = expandTo18Decimals(10000000)
 
 const rewardsConfig = {
   multiplier: BigNumber.from(2),
@@ -88,30 +86,30 @@ describe('RewardsCalculation', () => {
 
   describe('1. Reward is returned properly', () => {
     beforeEach(async () => {
-      await token.connect(wallet).transfer(rewardsWallet.address, bigDepositThreshold)
-      await token.connect(wallet).transfer(account1.address, bigDepositThreshold)
-      await token.connect(wallet).transfer(account2.address, bigDepositThreshold)
-      await token.connect(wallet).transfer(account3.address, bigDepositThreshold)
-      await token.connect(wallet).transfer(account4.address, bigDepositThreshold)
-      await token.connect(wallet).transfer(account5.address, bigDepositThreshold)
-      await token.connect(wallet).transfer(account6.address, bigDepositThreshold)
-      await token.connect(wallet).transfer(account7.address, bigDepositThreshold)
-      await token.connect(wallet).transfer(account8.address, bigDepositThreshold)
+      await token.connect(wallet).transfer(rewardsWallet.address, depositDist)
+      await token.connect(wallet).transfer(account1.address, depositDist)
+      await token.connect(wallet).transfer(account2.address, depositDist)
+      await token.connect(wallet).transfer(account3.address, depositDist)
+      await token.connect(wallet).transfer(account4.address, depositDist)
+      await token.connect(wallet).transfer(account5.address, depositDist)
+      await token.connect(wallet).transfer(account6.address, depositDist)
+      await token.connect(wallet).transfer(account7.address, depositDist)
+      await token.connect(wallet).transfer(account8.address, depositDist)
 
       //allow staking contract
-      await token.connect(wallet).approve(preStakingContract.address, bigDepositThreshold.mul(BigNumber.from(2)))
+      await token.connect(wallet).approve(preStakingContract.address, depositDist.mul(BigNumber.from(2)))
       await token.connect(rewardsWallet).approve(preStakingContract.address, rewardsAmount)
-      await token.connect(account1).approve(preStakingContract.address, bigDepositThreshold)
-      await token.connect(account2).approve(preStakingContract.address, bigDepositThreshold)
-      await token.connect(account3).approve(preStakingContract.address, bigDepositThreshold)
-      await token.connect(account4).approve(preStakingContract.address, bigDepositThreshold)
-      await token.connect(account5).approve(preStakingContract.address, bigDepositThreshold)
-      await token.connect(account6).approve(preStakingContract.address, bigDepositThreshold)
-      await token.connect(account7).approve(preStakingContract.address, bigDepositThreshold)
-      await token.connect(account8).approve(preStakingContract.address, bigDepositThreshold)
+      await token.connect(account1).approve(preStakingContract.address, depositDist)
+      await token.connect(account2).approve(preStakingContract.address, depositDist)
+      await token.connect(account3).approve(preStakingContract.address, depositDist)
+      await token.connect(account4).approve(preStakingContract.address, depositDist)
+      await token.connect(account5).approve(preStakingContract.address, depositDist)
+      await token.connect(account6).approve(preStakingContract.address, depositDist)
+      await token.connect(account7).approve(preStakingContract.address, depositDist)
+      await token.connect(account8).approve(preStakingContract.address, depositDist)
 
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract.setupRewards(
         rewardsConfig.multiplier,
@@ -122,35 +120,14 @@ describe('RewardsCalculation', () => {
       await preStakingContract.unpause()
     })
 
-    it('1.1 should return 48830 reward', async () => {
-      const expectedReward = BigNumber.from('48830')
-      // Computed via the spreadsheet
-      const timestamp = (await provider.getBlock("latest")).timestamp
-
-      await mineBlock(provider, timestamp + 30 * numberOfSecondsInOneDay)
-      await preStakingContract.connect(account1).deposit(depositAmount)
-
-      await mineBlock(provider, timestamp + 36 * numberOfSecondsInOneDay)
-      await preStakingContract.connect(account2).deposit(depositThreshold)
-
-      await mineBlock(provider, timestamp + 42 * numberOfSecondsInOneDay)
-      await preStakingContract.connect(account3).deposit(depositThreshold)
-
-      await mineBlock(provider, timestamp + 51 * numberOfSecondsInOneDay)
-      await preStakingContract.connect(account4).deposit(depositThreshold)
-
-      await mineBlock(provider, timestamp + 128 * numberOfSecondsInOneDay)
-      await expect(preStakingContract.connect(account1).executeWithdrawal()).to.emit(preStakingContract, 'WithdrawExecuted').withArgs(account1.address, depositAmount, expectedReward)
-    })
-
-    it('1.2', async () => {
+    it('1.1 Vesting schedules', async () => {
       const timestamp = (await provider.getBlock("latest")).timestamp
       await preStakingContract.connect(account1).deposit(preStakingConfig.amounts[0])
 
       await mineBlock(provider, timestamp + 30 * numberOfSecondsInOneDay)
 
       let currentReward = await preStakingContract.earned(account1.address)
-      await expect(currentReward).to.be.lte(expandTo18Decimals(600000))
+      expect(currentReward).to.be.lte(expandTo18Decimals(600000))
       console.log("current", currentReward.div(BigNumber.from(10).pow(18)).toString())
 
       await preStakingContract.connect(account2).deposit(preStakingConfig.amounts[1].sub(preStakingConfig.amounts[0]))
@@ -160,7 +137,7 @@ describe('RewardsCalculation', () => {
       currentReward2 = currentReward.add(await preStakingContract.earned(account2.address))
 
       console.log("current2", currentReward2.div(BigNumber.from(10).pow(18)).toString())
-      await expect(currentReward2).to.be.lte(expandTo18Decimals(600000))
+      expect(currentReward2).to.be.lte(expandTo18Decimals(600000))
 
       await preStakingContract.connect(account3).deposit(preStakingConfig.amounts[2].sub(preStakingConfig.amounts[1]))
       await mineBlock(provider, timestamp + 90 * numberOfSecondsInOneDay)
@@ -169,7 +146,7 @@ describe('RewardsCalculation', () => {
       currentReward3 = currentReward3.add(await preStakingContract.earned(account2.address))
       currentReward3 = currentReward3.add(await preStakingContract.earned(account3.address))
 
-      await expect(currentReward3).to.be.lte(expandTo18Decimals(726000))
+      expect(currentReward3).to.be.lte(expandTo18Decimals(726000))
       console.log("current3", currentReward3.div(BigNumber.from(10).pow(18)).toString(), "    /726 000")
 
       await preStakingContract.connect(account4).deposit(preStakingConfig.amounts[3].sub(preStakingConfig.amounts[2]))
@@ -180,7 +157,7 @@ describe('RewardsCalculation', () => {
       currentReward4 = currentReward4.add(await preStakingContract.earned(account3.address))
       currentReward4 = currentReward4.add(await preStakingContract.earned(account4.address))
 
-      await expect(currentReward4).to.be.lte(expandTo18Decimals(1452000))
+      expect(currentReward4).to.be.lte(expandTo18Decimals(1452000))
       console.log("current4", currentReward4.div(BigNumber.from(10).pow(18)).toString(), "    /1 452 000")
 
       await preStakingContract.connect(account5).deposit(preStakingConfig.amounts[4].sub(preStakingConfig.amounts[3]))
@@ -192,7 +169,7 @@ describe('RewardsCalculation', () => {
       currentReward5 = currentReward5.add(await preStakingContract.earned(account4.address))
       currentReward5 = currentReward5.add(await preStakingContract.earned(account5.address))
 
-      await expect(currentReward5).to.be.lte(expandTo18Decimals(1597200))
+      expect(currentReward5).to.be.lte(expandTo18Decimals(1597200))
       console.log("current5", currentReward5.div(BigNumber.from(10).pow(18)).toString(), "    /1 597 200")
 
       await preStakingContract.connect(account6).deposit(preStakingConfig.amounts[5].sub(preStakingConfig.amounts[4]))
@@ -205,7 +182,7 @@ describe('RewardsCalculation', () => {
       currentReward6 = currentReward6.add(await preStakingContract.earned(account5.address))
       currentReward6 = currentReward6.add(await preStakingContract.earned(account6.address))
 
-      await expect(currentReward6).to.be.lte(expandTo18Decimals(1756920))
+      expect(currentReward6).to.be.lte(expandTo18Decimals(1756920))
       console.log("current6", currentReward6.div(BigNumber.from(10).pow(18)).toString(), "    /1 756 920")
 
       await preStakingContract.connect(account7).deposit(preStakingConfig.amounts[6].sub(preStakingConfig.amounts[5]))
@@ -251,10 +228,10 @@ describe('RewardsCalculation', () => {
       currentReward9 = currentReward9.add(await preStakingContract.earned(wallet.address))
 
       console.log("current9", currentReward9.div(BigNumber.from(10).pow(18)).toString(), "    /4 676 921")
-      await expect(currentReward9).to.be.lte(expandTo18Decimals(4676921))
+      expect(currentReward9).to.be.lte(expandTo18Decimals(4676921))
     })
 
-    it('1.11', async () => {
+    it('1.2 Reward threshold', async () => {
       let baseRewardHistoryLength = await preStakingContract.baseRewardHistoryLength()
       expect(await preStakingContract.baseRewardIndex(baseRewardHistoryLength - 1)).to.be.equal(0)
 
@@ -266,14 +243,14 @@ describe('RewardsCalculation', () => {
       expect(await preStakingContract.baseRewardIndex(baseRewardHistoryLength1 - 1)).to.be.equal(1)
     })
 
-    it('1.12', async () => {
+    it('1.3 Calculating reward', async () => {
       await preStakingContract.connect(account1).deposit(depositAmount)
 
       const timestamp = (await provider.getBlock("latest")).timestamp
       await mineBlock(provider, timestamp + 330 * numberOfSecondsInOneDay)
 
       const currentReward = await preStakingContract.earned(account1.address)
-      await expect(currentReward).to.be.equal(255139)
+      expect(currentReward).to.be.equal(525287)
     })
   })
-})
+}) 

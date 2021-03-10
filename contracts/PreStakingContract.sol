@@ -19,15 +19,12 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
     enum ContractStatus {Setup, Running, RewardsDisabled}
 
-    enum DepositStatus {NoDeposit, Deposited, WithdrawalInitialized, WithdrawalExecuted}
-
-    IVAILockup ivaiLockup;
 
     // EVENTS
     event StakeDeposited(address indexed account, uint256 amount);
-    event LookupStakeDeposited(address indexed account, uint256 amount);
+    event LockupStakeDeposited(address indexed account, uint256 amount);
     event WithdrawExecuted(address indexed account, uint256 amount, uint256 reward);
-    event LookupWithdrawExecuted(address indexed account, uint256 amount, uint256 reward);
+    event LockupWithdrawExecuted(address indexed account, uint256 amount, uint256 reward);
 
     // STRUCT DECLARATIONS
     struct StakeDeposit {
@@ -48,7 +45,6 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     struct StakingLimitConfig {
         uint256[] amounts;
         uint256 daysInterval;
-        uint256 unstakingPeriod;
     }
 
     struct BaseRewardCheckpoint {
@@ -71,6 +67,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     }
 
     // CONTRACT STATE VARIABLES
+    IVAILockup public ivaiLockup;
     IERC20 public token;
     ContractStatus public currentContractStatus;
 
@@ -92,13 +89,6 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         uint256 resultedStakedAmount = currentTotalStake.add(amount);
         uint256 currentStakingLimit = _computeCurrentStakingLimit();
         require(resultedStakedAmount <= currentStakingLimit, "[Deposit] Your deposit would exceed the current staking limit");
-        _;
-    }
-
-    modifier guardForPrematureWithdrawal()
-    {
-        uint256 intervalsPassed = _getIntervalsPassed(); 
-        require(now >= (launchTimestamp + ((2 * stakingLimitConfig.daysInterval) * 1 days) + 3 days), "[Withdraw] Not enough days passed");
         _;
     }
 
@@ -174,7 +164,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         require(amount > 0, "[Validation] The stake deposit has to be larger than 0");
         require(!_stakeDeposits[msg.sender].exists, "[Deposit] You already have a stake");
         require(ivaiLockup.beneficiaryCurrentAmount(msg.sender) >= amount, "[Validation] You don't have enough funds");
-
+        
         StakeDeposit storage stakeDeposit = _stakeDeposits[msg.sender];
         stakeDeposit.amount = stakeDeposit.amount.add(amount);
         stakeDeposit.startDate = now;
@@ -190,7 +180,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
         
         ivaiLockup.stake(msg.sender, amount);
 
-        emit LookupStakeDeposited(msg.sender, amount);
+        emit LockupStakeDeposited(msg.sender, amount);
     }
 
     function executeWithdrawal()
@@ -198,7 +188,6 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     nonReentrant
     whenNotPaused
     onlyAfterSetup
-    guardForPrematureWithdrawal
     {
         StakeDeposit storage stakeDeposit = _stakeDeposits[msg.sender];
         require(stakeDeposit.exists && stakeDeposit.amount != 0, "[Withdraw] There is no stake deposit for this account");
@@ -232,7 +221,6 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     whenNotPaused
     onlyAfterSetup
     onlyAfterSettingIVAILockup
-    guardForPrematureWithdrawal
     {
         StakeDeposit storage stakeDeposit = _stakeDeposits[msg.sender];
         require(stakeDeposit.exists && stakeDeposit.amount != 0, "[Withdraw] There is no stake deposit for this account");
@@ -259,7 +247,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
 
         ivaiLockup.unstake(msg.sender, amount, reward);
 
-        emit LookupWithdrawExecuted(msg.sender, amount, reward);
+        emit LockupWithdrawExecuted(msg.sender, amount, reward);
     }
 
     function toggleRewards(bool enabled)
@@ -329,34 +317,6 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     {
         StakeDeposit memory stakeDeposit = _stakeDeposits[account];
         return stakeDeposit.amount;
-    }
-
-    function status(address account)
-    public
-    onlyAfterSetup
-    view
-    returns (DepositStatus)
-    {
-        if (!_stakeDeposits[account].exists || (_stakeDeposits[account].exists && _stakeDeposits[account].amount == 0)) {
-            return DepositStatus.NoDeposit;
-        }
-        if (_stakeDeposits[account].amount > 0) {
-            return _stakeDeposits[account].endDate == 0 ? DepositStatus.Deposited : DepositStatus.WithdrawalInitialized;
-        }
-        return DepositStatus.WithdrawalExecuted;
-    }
-
-    function withdrawalTime(address account)
-    external
-    onlyAfterSetup
-    view
-    returns (uint256)
-    {
-        StakeDeposit memory stakeDeposit = _stakeDeposits[account];
-        if (status(account) != DepositStatus.WithdrawalInitialized) {
-            return 0;
-        }
-        return stakeDeposit.endDate + (stakingLimitConfig.unstakingPeriod * 1 days);
     }
 
     function getStakeDeposit()
@@ -440,7 +400,7 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
     }
 
     // OWNER SETUP
-    function setupStakingLimit(uint256[] calldata amounts, uint256 daysInterval, uint256 unstakingPeriod)
+    function setupStakingLimit(uint256[] calldata amounts, uint256 daysInterval)
     external
     onlyOwner
     whenPaused
@@ -453,13 +413,12 @@ contract PreStakingContract is Pausable, ReentrancyGuard, Ownable {
             }
         }
       
-        require(daysInterval > 0 && unstakingPeriod >= 0, "[Validation] Some parameters are 0");
+        require(daysInterval > 0, "[Validation] Some parameters are 0");
 
         for (uint256 i = 0; i < amounts.length; i++) {
             stakingLimitConfig.amounts.push(amounts[i]);
         }
         stakingLimitConfig.daysInterval = daysInterval;
-        stakingLimitConfig.unstakingPeriod = unstakingPeriod;
 
         setupState.staking = true;
         _updateSetupState();

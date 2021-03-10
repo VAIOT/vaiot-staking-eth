@@ -29,8 +29,7 @@ const preStakingConfig = {
     BigNumber.from("16967343040000000000000000"),
     BigNumber.from("20500000000000000000000000")
   ],
-  daysInterval: BigNumber.from(30),
-  unstakingPeriod: BigNumber.from(7)
+  daysInterval: BigNumber.from(30)
 }
 
 const rewardsConfig = {
@@ -142,7 +141,7 @@ describe('VAILockup', () => {
       await vaiLockup.connect(account3).lock(account1.address, amount)
 
       let beneficiaryCurrentAmount = await vaiLockup.beneficiaryCurrentAmount(account1.address)
-      await expect(beneficiaryCurrentAmount).to.be.equal(amount)
+      expect(beneficiaryCurrentAmount).to.be.equal(amount)
     })
   })
 
@@ -154,7 +153,7 @@ describe('VAILockup', () => {
 
       await preStakingContract.setLockupAddress(vaiLockup.address)
       await preStakingContract.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract.setupRewards(
         rewardsConfig.multiplier,
@@ -185,7 +184,7 @@ describe('VAILockup', () => {
 
       await preStakingContract1.setLockupAddress(vaiLockup1.address)
       await preStakingContract1.setupStakingLimit(
-        preStakingConfig.amounts, preStakingConfig.daysInterval, preStakingConfig.unstakingPeriod
+        preStakingConfig.amounts, preStakingConfig.daysInterval
       )
       await preStakingContract1.setupRewards(
         rewardsConfig.multiplier,
@@ -195,8 +194,6 @@ describe('VAILockup', () => {
       )
       await preStakingContract1.unpause()
 
-      await token.connect(wallet).transfer(vaiLockup1.address, amount)
-      await token.connect(wallet).approve(preStakingContract.address, amount)
       await token.connect(wallet).transfer(account3.address, amount)
       await token.connect(account3).approve(vaiLockup1.address, amount)
 
@@ -211,10 +208,12 @@ describe('VAILockup', () => {
       await vaiLockup1.connect(account3).unlock(account1.address)
 
       await mineBlock(provider, launchTimestamp.add(90 * numberOfSecondsInOneDay).toNumber())
-      await vaiLockup1.connect(account3).unlock(account1.address)
+      await expect(vaiLockup1.connect(account3).unlock(account1.address)).to.emit(vaiLockup1, "TokensUnlocked").withArgs(account1.address, 64);
 
       await mineBlock(provider, launchTimestamp.add(120 * numberOfSecondsInOneDay).toNumber())
       let currentAmountAfterUnlock1 = await vaiLockup1.beneficiaryCurrentAmount(account1.address)
+      let account1Balance = await token.balanceOf(account1.address)
+      expect(account1Balance).to.be.eq(192)
       expect(currentAmountAfterUnlock1).to.equal(64)
     })
 
@@ -249,30 +248,62 @@ describe('VAILockup', () => {
       await expect(vaiLockup.connect(account3).stake(account1.address, amount)).to.be.revertedWith(revertMessage)
     })
 
-    it('6.1. Stake: should revert when not call by staking address', async () => {
+    it('6.2. Stake: should revert when not call by staking address', async () => {
       await vaiLockup.setStakingAddress(preStakingContract.address)
 
       const revertMessage = "This address is not staking address";
       await expect(vaiLockup.connect(account3).stake(account1.address, amount)).to.be.revertedWith(revertMessage)
     })
 
-    it('6.2. Unstake: should revert when not call by staking address', async () => {
+    it('6.3. Unstake: should revert when not call by staking address', async () => {
       await vaiLockup.setStakingAddress(preStakingContract.address)
       
       const revertMessage = "This address is not staking address";
       await expect(vaiLockup.connect(account3).unstake(account1.address, amount, 0)).to.be.revertedWith(revertMessage)
     })
+
+    it('6.3. Stake and unstake: should get rewards', async () => {
+      const timestamp = (await provider.getBlock("latest")).timestamp
+      await vaiLockup.setStakingAddress(preStakingContract.address)
+      await token.connect(wallet).approve(preStakingContract.address, amount)
+      await preStakingContract.setLockupAddress(vaiLockup.address)
+      await preStakingContract.setupStakingLimit(
+        preStakingConfig.amounts, preStakingConfig.daysInterval
+      )
+      await preStakingContract.setupRewards(
+        rewardsConfig.multiplier,
+        anualRewardRates,
+        lowerBounds,
+        upperBounds
+      )
+      await token.connect(wallet).transfer(rewardsWallet.address, expandTo18Decimals(1000000))
+      await token.connect(rewardsWallet).approve(preStakingContract.address, expandTo18Decimals(1000000))
+      await preStakingContract.unpause()
+      await expect(preStakingContract.connect(account1).depositLockup(amount)).to.emit(preStakingContract, "LockupStakeDeposited").withArgs(account1.address, amount)
+      await mineBlock(provider, timestamp + 300 * numberOfSecondsInOneDay)
+      await expect(preStakingContract.connect(account1).withdrawLockup()).to.emit(preStakingContract, "LockupWithdrawExecuted").withArgs(account1.address, amount, 56)
+      await expect(vaiLockup.connect(account1).unlock(account1.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account1.address, amount.div(4).add(56))
+      await expect(vaiLockup.connect(account1).unlock(account1.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account1.address, amount.div(4))
+      await expect(vaiLockup.connect(account1).unlock(account1.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account1.address, amount.div(4))
+      await expect(vaiLockup.connect(account1).unlock(account1.address)).to.emit(vaiLockup, "TokensUnlocked").withArgs(account1.address, amount.div(4))
+      let account1Balance = await token.balanceOf(account1.address)
+      expect(account1Balance).to.be.eq(amount.add(56))
+
+      const revertMessage = "Lockup already unlocked"
+      await expect(vaiLockup.connect(account1).unlock(account1.address)).to.be.revertedWith(revertMessage)
+    })
+
   })
 
   describe('7. Deployment', () => {
     it('7.1. PreStakingContract deployment gas', async () => {
       const receipt = await provider.getTransactionReceipt(preStakingContract.deployTransaction.hash)
-      expect(receipt.gasUsed).to.eq('5025739')
+      expect(receipt.gasUsed).to.eq('4822294')
     })
 
     it('7.2. VAILockup deployment gas', async () => {
       const receipt = await provider.getTransactionReceipt(vaiLockup.deployTransaction.hash)
-      expect(receipt.gasUsed).to.eq('940205')
+      expect(receipt.gasUsed).to.eq('1084644')
     })
   })
 })

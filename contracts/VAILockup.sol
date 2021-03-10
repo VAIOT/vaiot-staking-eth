@@ -5,7 +5,13 @@ import "interfaces/IVAILockup.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 contract VAILockup is IVAILockup {
-    
+
+    // EVENTS
+    event TokensLocked(address indexed account, uint256 amount);
+    event TokensUnlocked(address indexed account, uint256 amount);
+    event TokensStaked(address indexed account, uint256 stakeAmount);
+    event TokensUnstaked(address indexed account, uint256 stakeAmount, uint256 rewardsAmount);
+
     using Address for address;
 
     IERC20 private _token;
@@ -38,6 +44,7 @@ contract VAILockup is IVAILockup {
         interval = interval_;
         numberOfParts = numberOfParts_;
         startTime = now;
+        _lockups.push(Lockup(address(0), 0, 0, 0, 0, false));
     }
 
     modifier onlyStaking() {
@@ -77,19 +84,22 @@ contract VAILockup is IVAILockup {
         _beneficiaryToLockup[beneficiary] = lockupIndex;
 
         require(token().transferFrom(msg.sender, address(this), amount), "Something went wrong during the token transfer");
+        emit TokensLocked(beneficiary, amount);
     }
 
     function unlock(address beneficiary) public {
         Lockup storage lockup = _lockups[_beneficiaryToLockup[beneficiary]];
 
         require(lockup.stake == false, "Lockup amount is staked");
+        require(lockup.partsLeft > 0, "Lockup already unlocked");
         require(now >= (startTime + (interval * 1 days * (numberOfParts - lockup.partsLeft + 1))), "Not enough days passed");
-
-        token().transfer(beneficiary, lockup.initialAmount / numberOfParts + lockup.rewardsAmount);
+        uint256 tokensToUnlock = lockup.initialAmount / numberOfParts + lockup.rewardsAmount;
+        require(token().transfer(beneficiary, tokensToUnlock), "Something went wrong during the token transfer");
         
         lockup.partsLeft -= 1;
         lockup.rewardsAmount = 0;
         lockup.currentAmount -= lockup.initialAmount / numberOfParts;
+        emit TokensUnlocked(beneficiary, tokensToUnlock);
     }
 
     function setStakingAddress(address staking) 
@@ -107,6 +117,7 @@ contract VAILockup is IVAILockup {
         Lockup storage lockup = _lockups[_beneficiaryToLockup[beneficiary]];
         lockup.stake = true;
         lockup.currentAmount -= stakeAmount;
+        emit TokensStaked(beneficiary, stakeAmount);
     }
 
     function unstake(address beneficiary, uint256 stakeAmount, uint256 rewardsAmount)
@@ -118,5 +129,6 @@ contract VAILockup is IVAILockup {
         lockup.stake = false;
         lockup.currentAmount += stakeAmount;
         lockup.rewardsAmount += rewardsAmount;
+        emit TokensUnstaked(beneficiary, stakeAmount, rewardsAmount);
     }
 }
